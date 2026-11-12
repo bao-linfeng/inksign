@@ -1,0 +1,88 @@
+<script setup lang="ts" generic="T extends RowData">
+import type { RowData } from '@tanstack/vue-table'
+
+import { XIcon } from '@lucide/vue'
+import { Badge } from '@repo/ui/components/badge'
+import { Button } from '@repo/ui/components/button'
+import { Separator } from '@repo/ui/components/separator'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@repo/ui/components/tooltip'
+import { cn } from '@repo/ui/lib/utils'
+
+import type { DataTableInstance } from './table'
+
+interface BulkActionsProps<T extends RowData> {
+  table: DataTableInstance<T>
+  entityName: string
+}
+
+const { table, entityName } = defineProps<BulkActionsProps<T>>()
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const selectedCount = computed(() => selectedRows.value.length || 0)
+
+function handleClearSelection() {
+  table.resetRowSelection()
+}
+</script>
+
+<template>
+  <div
+    :class="cn(
+      'fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl',
+      'transition-all delay-100 duration-300 ease-out hover:scale-105',
+      'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none',
+    )"
+  >
+    <section
+      v-if="selectedCount" :class="cn(
+        'p-2 shadow-xl',
+        'rounded-xl border',
+        'bg-background/95 supports-backdrop-filter:bg-background/60 backdrop-blur-lg',
+        'flex items-center gap-x-2',
+      )"
+    >
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            variant="outline"
+            size="icon"
+            class="size-6 rounded-full"
+            :aria-label="$t('dataTable.clearSelection')"
+            :title="$t('dataTable.clearSelectionHint')"
+            @click="handleClearSelection"
+          >
+            <XIcon />
+            <span class="sr-only">{{ $t('dataTable.clearSelection') }}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{{ $t('dataTable.clearSelectionHint') }}</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <Separator
+        class="h-5"
+        orientation="vertical"
+        aria-hidden="true"
+      />
+
+      <section id="bulk-actions-description" class="flex items-center gap-x-1 text-sm">
+        <Badge
+          class="min-w-8 rounded-lg"
+          :aria-label="$t('dataTable.selectedCount', { count: selectedCount })"
+        >
+          {{ selectedCount }}
+        </Badge>
+        {{ $t('dataTable.entitySelected', { entity: entityName }) }}
+      </section>
+
+      <Separator
+        class="h-5"
+        orientation="vertical"
+        aria-hidden="true"
+      />
+
+      <slot />
+    </section>
+  </div>
+</template>

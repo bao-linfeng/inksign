@@ -1,0 +1,17 @@
+{
+  "name": "@repo/eslint-config",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./index.js"
+  },
+  "peerDependencies": {
+    "eslint": "catalog:"
+  },
+  "dependencies": {
+    "@antfu/eslint-config": "catalog:",
+    "eslint-plugin-format": "catalog:",
+    "typescript": "catalog:"
+  }
+}

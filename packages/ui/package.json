@@ -1,0 +1,43 @@
+{
+  "name": "@repo/ui",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./components/*": "./src/components/*/index.ts",
+    "./lib/utils": "./src/lib/utils.ts",
+    "./styles/*": "./src/styles/*"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check-types": "vue-tsc --noEmit"
+  },
+  "peerDependencies": {
+    "vue": "catalog:"
+  },
+  "dependencies": {
+    "@internationalized/date": "^3.12.4",
+    "@lucide/vue": "catalog:",
+    "@repo/utils": "workspace:*",
+    "@unovis/ts": "^1.7.0",
+    "@unovis/vue": "^1.7.0",
+    "@vueuse/core": "catalog:",
+    "class-variance-authority": "catalog:",
+    "embla-carousel-vue": "^8.6.0",
+    "reka-ui": "catalog:",
+    "tw-animate-css": "catalog:",
+    "vaul-vue": "catalog:",
+    "vee-validate": "^4.15.1",
+    "vue-input-otp": "^0.3.2",
+    "vue-sonner": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vue": "catalog:",
+    "vue-tsc": "catalog:"
+  }
+}

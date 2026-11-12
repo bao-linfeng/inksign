@@ -1,0 +1,108 @@
+import { isUnauthorized } from '@repo/utils'
+import { defineStore } from 'pinia'
+import { toast } from 'vue-sonner'
+
+import type { IMfaChallenge, IUserProfile } from '@/services/types/user.type'
+
+import { getErrorMessage } from '@/lib/api-client'
+import { hasPermission } from '@/lib/permissions'
+import { queryClient } from '@/lib/query-client'
+import { fetchMe } from '@/services/api/me.api'
+
+/** Sign-in that passed the password step and waits for a two-factor code (`/auth/otp`). */
+export interface IPendingMfa {
+  challengeToken: string
+  email: string
+  /** Epoch ms after which the server has forgotten the challenge. */
+  expiresAt: number
+}
+
+/**
+ * The admin session itself lives in HttpOnly cookies; this store only mirrors the signed-in admin.
+ * It is not persisted: `restore()` asks the server (`GET /admin/me`) once per page load. A pending
+ * two-factor challenge is kept in memory only, so reloading the code page starts the sign-in over.
+ * Whenever the signed-in admin changes (sign-out, expired session, another account) the Vue Query
+ * cache is dropped: it belongs to the admin who left.
+ */
+export const useAuthStore = defineStore('user', () => {
+  const user = shallowRef<IUserProfile | null>(null)
+  /** True once the session has been restored (or a login/logout happened). */
+  const initialized = shallowRef(false)
+  const isLogin = computed(() => user.value !== null)
+  const pendingMfa = shallowRef<IPendingMfa | null>(null)
+
+  function setUser(profile: IUserProfile) {
+    if (user.value && user.value.id !== profile.id)
+      queryClient.removeQueries()
+    user.value = profile
+    pendingMfa.value = null
+    initialized.value = true
+  }
+
+  function clear() {
+    if (user.value)
+      queryClient.removeQueries()
+    user.value = null
+    pendingMfa.value = null
+    initialized.value = true
+  }
+
+  function setPendingMfa(challenge: IMfaChallenge, email: string, now = Date.now()) {
+    pendingMfa.value = {
+      challengeToken: challenge.challengeToken,
+      email,
+      expiresAt: now + challenge.expiresIn * 1000,
+    }
+  }
+
+  /** The pending challenge, or null when there is none or it has expired. */
+  function activeMfa(now = Date.now()): IPendingMfa | null {
+    const pending = pendingMfa.value
+    return pending && pending.expiresAt > now ? pending : null
+  }
+
+  function clearPendingMfa() {
+    pendingMfa.value = null
+  }
+
+  function can(permission: string) {
+    return hasPermission(user.value?.permissions ?? [], permission)
+  }
+
+  let restoring: Promise<void> | null = null
+
+  /**
+   * Loads the profile for an existing cookie session; concurrent callers share one request. Only a 401
+   * means signed out: when the server cannot be reached or fails, the session stays unknown
+   * (`initialized` false), so the next navigation asks again instead of forgetting a valid session.
+   */
+  function restore(): Promise<void> {
+    restoring ??= fetchMe()
+      .then(setUser, (error: unknown) => {
+        if (isUnauthorized(error)) {
+          clear()
+          return
+        }
+        // One toast, even when the redirect to sign-in tries again.
+        toast.error(getErrorMessage(error), { id: 'session-restore' })
+      })
+      .finally(() => {
+        restoring = null
+      })
+    return restoring
+  }
+
+  return {
+    user,
+    initialized,
+    isLogin,
+    pendingMfa,
+    setUser,
+    clear,
+    setPendingMfa,
+    activeMfa,
+    clearPendingMfa,
+    can,
+    restore,
+  }
+})

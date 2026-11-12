@@ -1,0 +1,8 @@
+# Files executed or parsed inside Linux containers/hosts keep LF even on Windows checkouts (core.autocrlf).
+*.sh text eol=lf
+**/Dockerfile text eol=lf
+deploy/Caddyfile text eol=lf
+deploy/nginx/*.conf text eol=lf
+
+# Mounted into Linux containers (deploy/docker-compose.yml observability profile).
+deploy/observability/** text eol=lf
