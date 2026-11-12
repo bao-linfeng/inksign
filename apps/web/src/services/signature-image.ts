@@ -1,3 +1,9 @@
+/** Ink colours common on contracts, shared by drawn signatures and dates (PRD FR-02, FR-09) */
+export const INK_COLORS = [
+  { name: '黑色', value: '#1a1a1a' },
+  { name: '蓝色', value: '#1d3b8f' },
+] as const
+
 /** Pixel box in an image */
 export interface Bounds {
   x: number

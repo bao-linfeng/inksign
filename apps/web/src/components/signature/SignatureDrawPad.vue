@@ -5,15 +5,9 @@ import { Button } from '@repo/ui/components/button'
 import SignaturePad from 'signature_pad'
 import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
-import { canvasToPng, trimCanvas } from '@/services/signature-image'
+import { canvasToPng, INK_COLORS as COLORS, trimCanvas } from '@/services/signature-image'
 
 const emit = defineEmits<{ change: [empty: boolean] }>()
-
-/** Ink colours common on contracts */
-const COLORS = [
-  { name: '黑色', value: '#1a1a1a' },
-  { name: '蓝色', value: '#1d3b8f' },
-] as const
 
 /** CSS pixels kept around the strokes when trimming (PRD FR-03: 8–16 px) */
 const TRIM_PADDING = 12

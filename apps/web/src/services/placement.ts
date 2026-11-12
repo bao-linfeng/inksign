@@ -14,18 +14,19 @@ export const MIN_SIDE = 12
 
 export type Corner = 'nw' | 'ne' | 'sw' | 'se'
 
-interface Box {
+/** Rectangle in visible-page units, top-left origin */
+export interface Box {
   x: number
   y: number
   width: number
   height: number
 }
 
-function toBox(rect: PlacementRect, page: PageSize): Box {
+export function toBox(rect: PlacementRect, page: PageSize): Box {
   return { x: rect.xRatio * page.width, y: rect.yRatio * page.height, width: rect.widthRatio * page.width, height: rect.heightRatio * page.height }
 }
 
-function toRect(box: Box, page: PageSize): PlacementRect {
+export function toRect(box: Box, page: PageSize): PlacementRect {
   return { xRatio: box.x / page.width, yRatio: box.y / page.height, widthRatio: box.width / page.width, heightRatio: box.height / page.height }
 }
 
@@ -42,10 +43,11 @@ export function clampToPage(rect: PlacementRect): PlacementRect {
 
 /**
  * Where a signature lands when the page is clicked at `center` (ratios of the visible page):
- * centred on that point, keeping the image's `aspect` (width / height), inside the page.
+ * centred on that point, keeping the image's `aspect` (width / height), inside the page. `width` is
+ * the wanted width in page units, for images such as dates that are not signature-sized.
  */
-export function initialRect(page: PageSize, aspect: number, center: { x: number, y: number }): PlacementRect {
-  let width = Math.min(DEFAULT_WIDTH, page.width * DEFAULT_MAX_SHARE)
+export function initialRect(page: PageSize, aspect: number, center: { x: number, y: number }, width = DEFAULT_WIDTH): PlacementRect {
+  width = Math.min(width, page.width * DEFAULT_MAX_SHARE)
   let height = width / aspect
   if (height > page.height * DEFAULT_MAX_SHARE) {
     height = page.height * DEFAULT_MAX_SHARE
@@ -89,4 +91,32 @@ export function resizeFromCorner(rect: PlacementRect, corner: Corner, dx: number
     width,
     height,
   }, page)
+}
+
+/** Space between a signature and the date added under it, in page units */
+const BELOW_GAP = 4
+
+/**
+ * Where a date `height` page units high goes when added under `anchor` (PRD FR-09): centred
+ * below it, or above it when the page ends first; always on the page.
+ */
+export function rectBelow(anchor: PlacementRect, page: PageSize, aspect: number, height: number): PlacementRect {
+  const box = toBox(anchor, page)
+  const scale = Math.min(1, page.width / (height * aspect), page.height / height)
+  const size = { width: height * aspect * scale, height: height * scale }
+  const below = box.y + box.height + BELOW_GAP
+  const y = below + size.height <= page.height ? below : box.y - BELOW_GAP - size.height
+  return clampToPage(toRect({ x: box.x + (box.width - size.width) / 2, y, ...size }, page))
+}
+
+/**
+ * Fits `rect` to an image of another `aspect` (e.g. a date in a longer format): same height and
+ * horizontal centre, smaller when it would not fit the page.
+ */
+export function refitAspect(rect: PlacementRect, page: PageSize, aspect: number): PlacementRect {
+  const box = toBox(rect, page)
+  const scale = Math.min(1, page.width / (box.height * aspect))
+  const height = box.height * scale
+  const width = height * aspect
+  return clampToPage(toRect({ x: box.x + (box.width - width) / 2, y: box.y + (box.height - height) / 2, width, height }, page))
 }

@@ -3,6 +3,7 @@ import type { PreviewPage } from '@/services/pdf-import'
 import type { PlacementRect } from '@/types/signature'
 import { computed, ref } from 'vue'
 
+import { DATE_PLACED_HEIGHT } from '@/services/date-renderer'
 import { initialRect } from '@/services/placement'
 import { useSigningStore } from '@/stores/signing'
 
@@ -28,7 +29,9 @@ function rectAt(event: MouseEvent): PlacementRect | null {
     return null
   const layer = (event.currentTarget as HTMLElement).getBoundingClientRect()
   const center = { x: (event.clientX - layer.left) / layer.width, y: (event.clientY - layer.top) / layer.height }
-  return initialRect(pageSize.value, source.naturalWidth / source.naturalHeight, center)
+  const aspect = source.naturalWidth / source.naturalHeight
+  // Dates are sized like text rather than like a signature
+  return initialRect(pageSize.value, aspect, center, source.kind === 'date' ? DATE_PLACED_HEIGHT * aspect : undefined)
 }
 
 function onClick(event: MouseEvent) {
@@ -70,6 +73,7 @@ function onPointerMove(event: PointerEvent) {
       :key="placement.id"
       :placement="placement"
       :image-url="signing.sourceOf(placement.sourceId)?.previewUrl ?? ''"
+      :label="signing.sourceOf(placement.sourceId)?.kind === 'date' ? '日期' : '签名'"
       :page="pageSize"
       :selected="placement.id === signing.selectedId"
       @select="signing.select(placement.id)"

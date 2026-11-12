@@ -9,6 +9,8 @@ import { moveBy, resizeFromCorner } from '@/services/placement'
 const props = defineProps<{
   placement: Placement
   imageUrl: string
+  /** What it is for screen readers: 签名 or 日期 */
+  label?: string
   /** Visible page size, to keep the aspect ratio and to step in page units */
   page: PageSize
   selected: boolean
@@ -132,7 +134,7 @@ watch(() => props.selected, (selected) => {
     }"
     tabindex="0"
     role="button"
-    :aria-label="`签名，第 ${placement.pageIndex + 1} 页${selected ? '，已选中：方向键移动，Delete 删除' : ''}`"
+    :aria-label="`${label ?? '签名'}，第 ${placement.pageIndex + 1} 页${selected ? '，已选中：方向键移动，Delete 删除' : ''}`"
     :aria-pressed="selected"
     @pointerdown="begin($event, null)"
     @pointermove="onPointerMove"
@@ -166,7 +168,7 @@ watch(() => props.selected, (selected) => {
       <button
         type="button"
         class="absolute -top-9 right-0 grid size-6 place-items-center rounded-full bg-destructive text-white shadow-md outline-none hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label="删除此签名"
+        :aria-label="`删除此${label ?? '签名'}`"
         title="删除"
         @pointerdown.stop
         @click.stop="emit('remove')"

@@ -1,7 +1,12 @@
+import type { DateField } from '@/services/date-renderer'
+import type { PageSize } from '@/services/placement'
 import type { SignatureImage } from '@/services/signature-image'
 import type { Placement, PlacementRect, SignatureSource } from '@/types/signature'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+
+import { anchoredRect } from '@/services/batch-placement'
+import { refitAspect } from '@/services/placement'
 
 let lastId = 0
 // Not crypto.randomUUID(): it is missing on plain-HTTP origins such as a LAN test server
@@ -29,17 +34,47 @@ export const useSigningStore = defineStore('signing', () => {
     return sources.value.find(source => source.id === id)
   }
 
-  function addSource(kind: SignatureSource['kind'], image: SignatureImage): SignatureSource {
+  const previewUrlOf = (image: SignatureImage) => URL.createObjectURL(new Blob([image.pngBytes as BlobPart], { type: 'image/png' }))
+
+  function addSource(kind: SignatureSource['kind'], image: SignatureImage, date?: DateField): SignatureSource {
     const source: SignatureSource = {
       id: newId('s'),
       kind,
       pngBytes: image.pngBytes,
-      previewUrl: URL.createObjectURL(new Blob([image.pngBytes as BlobPart], { type: 'image/png' })),
+      previewUrl: previewUrlOf(image),
       naturalWidth: image.width,
       naturalHeight: image.height,
+      ...(date && { date }),
     }
     sources.value.push(source)
     return source
+  }
+
+  /**
+   * Swaps the image of a signature, e.g. a date whose value or format changed (PRD FR-09): every
+   * placement of it follows, keeping its height and centre. `pages` are the visible page sizes.
+   */
+  function replaceImage(id: string, image: SignatureImage, pages: readonly PageSize[], date?: DateField) {
+    const index = sources.value.findIndex(s => s.id === id)
+    const source = sources.value[index]
+    if (!source)
+      return
+    URL.revokeObjectURL(source.previewUrl)
+    sources.value[index] = {
+      ...source,
+      pngBytes: image.pngBytes,
+      previewUrl: previewUrlOf(image),
+      naturalWidth: image.width,
+      naturalHeight: image.height,
+      ...(date && { date }),
+    }
+    const aspect = image.width / image.height
+    placements.value = placements.value.map((placement) => {
+      const page = pages[placement.pageIndex]
+      return placement.sourceId === id && page ? { ...placement, ...refitAspect(placement, page, aspect) } : placement
+    })
+    if (placements.value.some(p => p.sourceId === id))
+      unexported.value = true
   }
 
   /** Removes a signature together with every placement of it. */
@@ -68,14 +103,55 @@ export const useSigningStore = defineStore('signing', () => {
   /** Places the armed signature and selects it; placing ends the placing mode. */
   function place(pageIndex: number, rect: PlacementRect): Placement | null {
     const sourceId = armedSourceId.value
-    if (!sourceId || !sourceOf(sourceId))
+    if (!sourceId)
+      return null
+    const placement = placeSource(sourceId, pageIndex, rect)
+    armedSourceId.value = null
+    return placement
+  }
+
+  /** Places a given signature without arming it, e.g. a date under a signature, and selects it. */
+  function placeSource(sourceId: string, pageIndex: number, rect: PlacementRect): Placement | null {
+    if (!sourceOf(sourceId))
       return null
     const placement: Placement = { id: newId('p'), sourceId, pageIndex, ...rect }
     placements.value.push(placement)
-    armedSourceId.value = null
     selectedId.value = placement.id
     unexported.value = true
     return placement
+  }
+
+  /**
+   * Copies a placement to `pageIndexes` at the same distance from its nearest page corner (PRD
+   * FR-10). Pages that already show this signature are skipped. The copies and the original share a
+   * `groupId`, so they can be deleted together; each one still moves on its own. Returns how many
+   * copies were made.
+   */
+  function applyToPages(id: string, pageIndexes: readonly number[], pages: readonly PageSize[]) {
+    const original = placements.value.find(p => p.id === id)
+    const from = original && pages[original.pageIndex]
+    if (!original || !from)
+      return 0
+    const taken = new Set(placements.value.filter(p => p.sourceId === original.sourceId).map(p => p.pageIndex))
+    const targets = pageIndexes.filter(index => !taken.has(index) && pages[index])
+    if (!targets.length)
+      return 0
+    const groupId = original.groupId ?? newId('g')
+    original.groupId = groupId
+    for (const pageIndex of targets) {
+      const rect = anchoredRect(original, from, pages[pageIndex]!)
+      placements.value.push({ id: newId('p'), sourceId: original.sourceId, pageIndex, ...rect, groupId })
+    }
+    unexported.value = true
+    return targets.length
+  }
+
+  /** Deletes every placement of a batch (FR-10), leaving the ones placed by hand. */
+  function removeGroup(groupId: string) {
+    placements.value = placements.value.filter(p => p.groupId !== groupId)
+    if (selectedId.value && !selected.value)
+      selectedId.value = null
+    unexported.value = true
   }
 
   function update(id: string, rect: PlacementRect) {
@@ -121,11 +197,15 @@ export const useSigningStore = defineStore('signing', () => {
     hasUnexported,
     sourceOf,
     addSource,
+    replaceImage,
     removeSource,
     arm,
     place,
+    placeSource,
+    applyToPages,
     update,
     remove,
+    removeGroup,
     select,
     markExported,
     reset,

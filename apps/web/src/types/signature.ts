@@ -1,3 +1,5 @@
+import type { DateField } from '@/services/date-renderer'
+
 /** Position and size of a placed item, as ratios of the visible page (top-left origin, PRD §6). */
 export interface PlacementRect {
   xRatio: number
@@ -26,4 +28,6 @@ export interface SignatureSource {
   previewUrl: string
   naturalWidth: number
   naturalHeight: number
+  /** For `kind: 'date'`: what the image shows; editing it re-renders the image (FR-09) */
+  date?: DateField
 }

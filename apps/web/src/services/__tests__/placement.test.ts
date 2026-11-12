@@ -1,7 +1,7 @@
 import type { PlacementRect } from '@/types/signature'
 import { describe, expect, it } from 'vitest'
 
-import { clampToPage, initialRect, MIN_SIDE, moveBy, resizeFromCorner } from '../placement'
+import { clampToPage, initialRect, MIN_SIDE, moveBy, rectBelow, refitAspect, resizeFromCorner } from '../placement'
 
 const a4 = { width: 595, height: 842 }
 
@@ -36,6 +36,10 @@ describe('initialRect', () => {
     expectBox(initialRect(small, 0.5, { x: 0.5, y: 0.5 }), { x: 90, y: 30, width: 20, height: 40 }, small)
     // Wide image: limited by the page width
     expectBox(initialRect(small, 4, { x: 0.5, y: 0.5 }), { x: 60, y: 40, width: 80, height: 20 }, small)
+  })
+
+  it('takes another width for images that are not signature-sized', () => {
+    expectBox(initialRect(a4, 6, { x: 0.5, y: 0.5 }, 108), { x: 297.5 - 54, y: 421 - 9, width: 108, height: 18 })
   })
 })
 
@@ -88,5 +92,38 @@ describe('resizeFromCorner', () => {
     const rect = resizeFromCorner(start, 'se', -5, -5, a4)
     expect(box(rect).height).toBeCloseTo(MIN_SIDE, 6)
     expect(box(rect).width).toBeCloseTo(MIN_SIDE * 3, 6)
+  })
+})
+
+describe('rectBelow', () => {
+  // 150 × 50 at (100, 200)
+  const signature: PlacementRect = { xRatio: 100 / 595, yRatio: 200 / 842, widthRatio: 150 / 595, heightRatio: 50 / 842 }
+
+  it('centres the date just under the signature', () => {
+    expectBox(rectBelow(signature, a4, 6, 18), { x: 175 - 54, y: 254, width: 108, height: 18 })
+  })
+
+  it('goes above when the page ends below the signature', () => {
+    const low = { ...signature, yRatio: 780 / 842 }
+    expectBox(rectBelow(low, a4, 6, 18), { x: 121, y: 780 - 4 - 18, width: 108, height: 18 })
+  })
+
+  it('stays on the page next to a side', () => {
+    const left = { ...signature, xRatio: 0, widthRatio: 40 / 595 }
+    expect(box(rectBelow(left, a4, 6, 18)).x).toBeCloseTo(0, 6)
+  })
+})
+
+describe('refitAspect', () => {
+  it('keeps the height and centre when the image gets wider', () => {
+    // 108 × 18 centred at x = 175
+    const date: PlacementRect = { xRatio: 121 / 595, yRatio: 254 / 842, widthRatio: 108 / 595, heightRatio: 18 / 842 }
+    expectBox(refitAspect(date, a4, 8), { x: 175 - 72, y: 254, width: 144, height: 18 })
+  })
+
+  it('shrinks to the page width', () => {
+    const date: PlacementRect = { xRatio: 0, yRatio: 0.5, widthRatio: 0.5, heightRatio: 100 / 842 }
+    const rect = refitAspect(date, a4, 10)
+    expectBox(rect, { x: 0, y: 421 + 50 - 29.75, width: 595, height: 59.5 })
   })
 })

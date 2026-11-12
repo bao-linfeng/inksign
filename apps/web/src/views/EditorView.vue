@@ -56,6 +56,7 @@ const confirmingCertification = computed(() => certified.value && !certification
 const signing = useSigningStore()
 const creating = ref(false)
 const armed = computed(() => signing.armedSourceId !== null)
+const armedNoun = computed(() => (signing.armedSourceId && signing.sourceOf(signing.armedSourceId)?.kind === 'date' ? '日期' : '签名'))
 
 function onCreate(kind: 'draw' | 'image' | 'date', image: Parameters<typeof signing.addSource>[1]) {
   signing.arm(signing.addSource(kind, image).id)
@@ -163,12 +164,12 @@ async function runExport() {
           <SignatureLayer :page-index="pageIndex" :page="page" />
         </template>
       </PdfViewer>
-      <SignaturePanel class="w-64 shrink-0 border-l border-sidebar-border max-md:hidden" @create="creating = true" />
+      <SignaturePanel :pages="doc.pages" class="w-64 shrink-0 border-l border-sidebar-border max-md:hidden" @create="creating = true" />
 
       <div v-if="armed" class="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-3" role="status">
         <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg">
           <MousePointerClick class="size-4" aria-hidden="true" />
-          点击页面放置签名
+          点击页面放置{{ armedNoun }}
           <button
             type="button"
             class="rounded-full px-2.5 py-0.5 text-xs text-background/80 outline-none hover:bg-background/15 focus-visible:ring-2 focus-visible:ring-background"
