@@ -14,41 +14,17 @@
   "internalChecksFilter": "strict",
   "prConcurrentLimit": 10,
   "rangeStrategy": "bump",
-  "ignorePaths": [
-    "**/node_modules/**",
-    "apps/admin/.github/**"
-  ],
+  "ignorePaths": ["**/node_modules/**"],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 9am on monday"]
   },
-  "customManagers": [
-    {
-      "description": [
-        "ARG PNPM_VERSION in the Dockerfiles must match the root packageManager."
-      ],
-      "customType": "regex",
-      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
-      "matchStrings": ["ARG PNPM_VERSION=(?<currentValue>\\S+)"],
-      "depNameTemplate": "pnpm",
-      "datasourceTemplate": "npm"
-    }
-  ],
   "packageRules": [
-    {
-      "description": ["packageManager and the Dockerfile ARGs move together."],
-      "matchDepNames": ["pnpm"],
-      "groupName": "pnpm"
-    },
     {
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
       "matchCurrentVersion": "!/^0/",
       "groupName": "dev dependencies (non-major)"
-    },
-    {
-      "matchPackageNames": ["@nestjs/**"],
-      "groupName": "NestJS"
     },
     {
       "matchPackageNames": [
@@ -67,25 +43,20 @@
       "groupName": "Vite and Vitest"
     },
     {
-      "matchPackageNames": ["drizzle-orm", "drizzle-kit"],
-      "groupName": "Drizzle"
-    },
-    {
       "matchPackageNames": ["tailwindcss", "@tailwindcss/**"],
       "groupName": "Tailwind CSS"
     },
     {
-      "matchManagers": ["github-actions"],
-      "groupName": "GitHub Actions"
+      "description": [
+        "PDF parsing and writing handle untrusted files: review these updates together and promptly."
+      ],
+      "matchPackageNames": ["pdfjs-dist", "@cantoo/pdf-lib"],
+      "groupName": "PDF libraries",
+      "schedule": ["at any time"]
     },
     {
-      "description": [
-        "Major upgrades of PostgreSQL, Redis and Silo change on-disk formats: upgrade them by hand with a backup."
-      ],
-      "matchManagers": ["docker-compose"],
-      "matchPackageNames": ["pgvector/pgvector", "redis", "pgsty/silo"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
     }
   ]
 }

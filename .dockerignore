@@ -1,4 +1,4 @@
-# Build context is the repository root for every image (apps/*/Dockerfile).
+# Build context is the repository root.
 # Keep it small and never send local secrets or host-built artifacts into the build.
 
 .git
@@ -9,17 +9,11 @@
 **/dist
 **/coverage
 **/*.tsbuildinfo
-**/.vitepress/cache
-**/.vitepress/dist
 
 # Local env files (Vite would bake apps/*/.env into the bundle); examples stay.
 **/.env
 **/.env.*
 !**/.env.example
-
-# Deployment state
-deploy/.env
-deploy/backups
 
 # Editor / OS noise
 **/.DS_Store

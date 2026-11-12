@@ -1,6 +1,6 @@
 # `@repo/ui`
 
-monorepo 共享 UI 组件库，基于 shadcn-vue 和 reka-ui，供 `apps/admin` 和 `apps/client` 共用。包直接导出 TypeScript / Vue 源码，无独立构建步骤，组件内部显式导入 Vue API，不依赖管理端自动导入。
+monorepo 共享 UI 组件库，基于 shadcn-vue 和 reka-ui，供 `apps/web` 使用。包直接导出 TypeScript / Vue 源码，无独立构建步骤，组件内部显式导入 Vue API，不依赖自动导入。
 
 ## 使用方式
 
@@ -51,18 +51,17 @@ import { cn } from '@repo/ui/lib/utils'
 2. 在 `packages/ui/package.json` 中添加新引入的第三方依赖
 3. 共享版本使用根 `pnpm-workspace.yaml` catalog，依赖变更后从根目录运行 `pnpm install` 更新唯一锁文件
 
-修改 `packages/ui` 后，admin 和 client 都需要验证：
+修改 `packages/ui` 后需要验证：
 
 ```bash
 pnpm -C packages/ui lint
 pnpm -C packages/ui check-types
-pnpm -C apps/admin build
-pnpm -C apps/client build
+pnpm -C apps/web build
 ```
 
 ## 主题
 
-两个应用各自在 `:root`、`.dark`、`.theme-*` 上定义自己的 CSS token（admin 用 oklch，client 用 hsl）。token 值必须是完整颜色，不是 Tailwind 3 的 HSL triplet。`theme.css` 负责将 token 映射为 Tailwind 工具类，并通过 `@source` 扫描所有共享组件源码。
+应用在 `:root`、`.dark`、`.theme-*` 上定义自己的 CSS token。token 值必须是完整颜色，不是 Tailwind 3 的 HSL triplet。`theme.css` 负责将 token 映射为 Tailwind 工具类，并通过 `@source` 扫描所有共享组件源码。
 
 ## 开发约束
 

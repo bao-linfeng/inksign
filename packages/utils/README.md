@@ -1,11 +1,11 @@
 # `@repo/utils`
 
-monorepo 共享工具函数库，框架无关，供 `apps/admin` 和 `apps/client` 共用。包直接导出 TypeScript 源码，无独立构建步骤。
+monorepo 共享工具函数库，框架无关，供 `@repo/ui` 与 `apps/web` 使用。包直接导出 TypeScript 源码，无独立构建步骤。
 
 ## 使用方式
 
 ```ts
-import { applyThemeClass, cn, createApiClient, FetchError, getErrorMessage, isExternalUrl, isUnauthorized } from '@repo/utils'
+import { applyThemeClass, cn, isExternalUrl } from '@repo/utils'
 ```
 
 ## 导出 API
@@ -37,32 +37,6 @@ applyThemeClass('blue') // 添加 theme-blue
 applyThemeClass('green', document.body) // 在 body 上切换到 theme-green
 ```
 
-### `createApiClient({ baseURL, authPath?, timeout?, onUnauthorized? })`
-
-基于 ofetch 的 Cookie 会话客户端，对接 `apps/server`：默认带 `credentials: 'include'`，超时为 15 秒；遇到 401 时，同一客户端实例的并发请求共享一次 `POST <authPath>/refresh` 并各自重试一次；刷新失败或重试仍是 401 时调用并等待 `onUnauthorized`。同一应用的多个标签页共用会话 Cookie，因此浏览器支持 Web Locks（`navigator.locks`）时，刷新会按 realm 跨标签页串行执行；刷新若因输给并发刷新而得到 409 `AUTH_REFRESH_SUPERSEDED`（导出常量 `REFRESH_SUPERSEDED`），会稍等后用新 Cookie 重试（最多 3 次），不会当作登出。
-
-`baseURL` 指向账号体系（realm）的版本化根路径：客户端用户为 `<API>/v1/client`，管理端为 `<API>/v1/admin`。`authPath` 默认 `/auth`。该路径下 `login`、`register`、`refresh`、`logout`、`forgot-password`、`reset-password` 的 401 原样抛出，不触发刷新；匹配时忽略查询字符串。
-
-返回 `{ fetch, refreshSession }`：`fetch` 使用相对接口路径，错误为 ofetch `FetchError`；`refreshSession()` 返回 `Promise<boolean>`，共享进行中的刷新请求，单独调用时不会触发 `onUnauthorized`。这是 Cookie 客户端，未实现服务端 Bearer 模式的令牌存储与轮换。
-
-```ts
-export const { fetch: api } = createApiClient({
-  baseURL: 'http://localhost:3020/api/v1/client',
-  onUnauthorized: () => { window.location.assign('/login') },
-})
-await api('/users/me', { method: 'PATCH', body: { nickname: 'Ada' } })
-```
-
-### `FetchError` / `isUnauthorized(error)` 与类型导出
-
-`isUnauthorized` 仅在错误为 `FetchError` 且状态为 401 时返回 `true`。应用从本包导入它们，无需直接依赖 ofetch。另导出 `ApiClient`、`ApiClientOptions`、`ApiFetch` 和 `FetchOptions` 类型。
-
-### `getErrorMessage(error, fallback?)`
-
-把错误转成可读文案：拼接 Nest 校验错误数组 `message`，无响应时区分超时与无法连接，其余回退到 `statusText` / `Error.message` / `fallback`。
-
-默认兜底为 `Request failed`；超时与连接失败消息是包内英文文本。传入翻译后的 `fallback` 不会覆盖服务端原始消息或这些网络错误文案。
-
 ## 开发
 
 使用根目录的 Node.js 24.22+ / pnpm 11.25.0 环境安装依赖：`pnpm install --frozen-lockfile`。以下命令在仓库根目录运行：
@@ -75,17 +49,11 @@ pnpm -C packages/utils test:watch
 pnpm -C packages/utils test:coverage
 ```
 
-修改此包后，admin 和 client 都需要验证：
-
-```bash
-pnpm -C apps/admin build
-pnpm -C apps/client build
-```
+修改此包后，`apps/web` 也需要运行 build 验证。
 
 ## 依赖
 
 - `cn`：clsx + tailwind-merge 封装
-- `ofetch`（catalog）：`createApiClient` 的传输层，admin/client 通过本包间接使用
 
 ## 测试
 

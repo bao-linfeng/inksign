@@ -1,8 +1,8 @@
 # `@repo/eslint-config`
 
-基于 [`@antfu/eslint-config`](https://github.com/antfu/eslint-config) 的共享 ESLint 配置，供 admin、client、docs、`@repo/ui`、`@repo/utils` 使用。
+基于 [`@antfu/eslint-config`](https://github.com/antfu/eslint-config) 的共享 ESLint 配置，供 `apps/web`、`@repo/ui`、`@repo/utils` 使用。
 
-包入口为 `index.js`，命名导出和默认导出均为 `defineConfig`。服务端使用自己的 oxlint/Prettier，不消费此配置。依赖从仓库根目录安装，使用 Node.js 24.22+ 和 pnpm 11.25.0。
+包入口为 `index.js`，命名导出和默认导出均为 `defineConfig`。依赖从仓库根目录安装，使用 Node.js 24.22+ 和 pnpm 11.25.0。
 
 ## 使用
 
@@ -28,11 +28,9 @@ export default defineConfig({
 本包没有独立 lint、test 或 build 脚本，通过消费方检查验证。从仓库根目录执行：
 
 ```sh
-pnpm -C apps/admin lint
-pnpm -C apps/client lint
-pnpm -C apps/docs lint
+pnpm -C apps/web lint
 pnpm -C packages/ui lint
 pnpm -C packages/utils lint
 ```
 
-各消费方的 `eslint.config.js` 追加自己的规则与忽略路径，例如 admin 忽略 `build/`、client 忽略 `public/**`、ui 忽略共享组件源码。格式修复使用消费方的 `lint:fix`，不是根 Prettier 对这些工作区统一处理。
+各消费方的 `eslint.config.js` 追加自己的规则与忽略路径，例如 web 忽略 `public/**`、ui 忽略共享组件源码。格式修复使用消费方的 `lint:fix`，不是根 Prettier 对这些工作区统一处理。

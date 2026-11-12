@@ -16,20 +16,16 @@
     },
     "test": {
       "cache": false,
-      "env": ["NODE_ENV", "JWT_SECRET"]
+      "env": ["NODE_ENV"]
     },
     "test:coverage": {
       "cache": false,
-      "env": ["NODE_ENV", "JWT_SECRET"]
-    },
-    "test:e2e": {
-      "cache": false,
-      "env": ["NODE_ENV", "JWT_SECRET"]
+      "env": ["NODE_ENV"]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["PORT", "JWT_SECRET", "NODE_ENV"]
+      "passThroughEnv": ["PORT", "NODE_ENV"]
     }
   }
 }

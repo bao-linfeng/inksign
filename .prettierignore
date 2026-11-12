@@ -4,14 +4,10 @@ node_modules/
 **/dist/
 **/coverage/
 **/*.tsbuildinfo
-**/.vitepress/cache/
 pnpm-lock.yaml
 
-# Formatted by their own tooling: Antfu ESLint (`lint:fix`) or the server's local Prettier
-apps/admin/
-apps/client/
-apps/docs/
-apps/server/
+# Formatted by Antfu ESLint (`lint:fix`)
+apps/web/
 packages/eslint-config/
 packages/ui/
 packages/utils/

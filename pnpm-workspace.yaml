@@ -2,12 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Versions shared by more than one workspace (admin, client, docs, @repo/*). Reference them as `catalog:`.
+# Versions shared by more than one workspace (web, @repo/*). Reference them as `catalog:`.
 catalog:
   "@antfu/eslint-config": ^9.5.1
   "@lucide/vue": ^1.46.0
-  "@tanstack/eslint-plugin-query": ^5.102.8
-  "@tanstack/vue-query": ^5.102.8
   "@tailwindcss/vite": ^4.3.3
   "@vitejs/plugin-vue": ^6.0.9
   "@vitest/coverage-v8": ^4.1.11
@@ -17,7 +15,6 @@ catalog:
   eslint: ^10.10.0
   eslint-plugin-format: ^2.0.1
   happy-dom: ^20.14.5
-  ofetch: ^1.5.1
   pinia: ^4.0.3
   reka-ui: ^2.10.4
   tailwindcss: ^4.3.3
@@ -35,14 +32,6 @@ catalog:
 minimumReleaseAge: 1440
 shellEmulator: true
 allowBuilds:
-  "@nestjs/core": true
-  "@scarf/scarf": false
-  "@swc/core": true
-  cpu-features: false
   esbuild: true
   maplibre-gl: true
-  msgpackr-extract: true
-  protobufjs: false
-  sharp: true
-  ssh2: false
   vue-demi: true
