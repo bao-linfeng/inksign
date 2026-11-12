@@ -39,6 +39,9 @@ export default defineConfig({
     sourcemap: false,
   },
   server: {
+    // Node on Windows resolves `localhost` to ::1 only; browsers behind a proxy or TUN mode often try
+    // 127.0.0.1 and get refused. IPv4 loopback works for both URLs without exposing the LAN.
+    host: '127.0.0.1',
     port: 5020,
     strictPort: true,
   },

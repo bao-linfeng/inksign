@@ -29,11 +29,11 @@ These come from the PRD and must hold for every change:
 
 Run these from the repository root; directory targeting avoids guessing package names.
 
-| Scope | Development                   | Focused verification                                                                                    |
-| ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Web   | `pnpm -C apps/web dev` (5020) | `pnpm -C apps/web lint:fix`, `pnpm -C apps/web build` (includes Vue typecheck), `pnpm -C apps/web test` |
-| UI    | —                             | `pnpm -C packages/ui lint`, `pnpm -C packages/ui check-types`                                           |
-| Utils | —                             | `pnpm -C packages/utils lint:fix`, `pnpm -C packages/utils check-types`, `pnpm -C packages/utils test`  |
+| Scope | Development           | Focused verification                                                                                    |
+| ----- | --------------------- | ------------------------------------------------------------------------------------------------------- |
+| Web   | `pnpm dev:web` (5020) | `pnpm -C apps/web lint:fix`, `pnpm -C apps/web build` (includes Vue typecheck), `pnpm -C apps/web test` |
+| UI    | —                     | `pnpm -C packages/ui lint`, `pnpm -C packages/ui check-types`                                           |
+| Utils | —                     | `pnpm -C packages/utils lint:fix`, `pnpm -C packages/utils check-types`, `pnpm -C packages/utils test`  |
 
 - Root `lint`, `check-types`, `test`, `test:coverage` and `build` run through Turbo over every workspace that defines the script. Typechecks and tests bypass Turbo cache; builds cache `dist/**`.
 - All tests use Vitest from the root catalog. Tests live in `src/**/__tests__/*.test.ts` and opt into DOM with `// @vitest-environment happy-dom`. Single test: `pnpm -C packages/utils test src/__tests__/theme.test.ts`.

@@ -37,7 +37,7 @@ pnpm install --frozen-lockfile
 ## 本地开发
 
 ```sh
-pnpm -C apps/web dev   # http://localhost:5020，端口被占用时报错而不是换端口
+pnpm dev:web   # http://localhost:5020，端口被占用时报错而不是换端口
 ```
 
 启动和构建时会把 `pdfjs-dist` 的字体映射、标准字体与 wasm 解码器复制到 `apps/web/public/pdfjs/`（已加入 `.gitignore`），由站点自身提供。
