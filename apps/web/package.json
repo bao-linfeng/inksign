@@ -1,0 +1,52 @@
+{
+  "name": "web",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "InkSign (墨签): browser-only PDF visual signature tool.",
+  "author": "baolf",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bao-linfeng/inksign",
+    "directory": "apps/web"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "check-types": "vue-tsc -b",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.11.1",
+    "@lucide/vue": "catalog:",
+    "@repo/ui": "workspace:*",
+    "@repo/utils": "workspace:*",
+    "idb": "^8.0.4",
+    "pdfjs-dist": "^6.5.438",
+    "pinia": "catalog:",
+    "signature_pad": "^5.1.4",
+    "vue": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@vue/test-utils": "catalog:",
+    "eslint": "catalog:",
+    "happy-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "vue-tsc": "catalog:"
+  }
+}

@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+@import '@repo/ui/styles/theme.css';
+
+/* Ink palette: near-black ink on paper white, ink-blue accent */
+:root {
+  --background: oklch(0.99 0.004 85);
+  --foreground: oklch(0.2 0.02 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.02 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.02 255);
+  --primary: oklch(0.36 0.08 255);
+  --primary-foreground: oklch(0.98 0.004 85);
+  --secondary: oklch(0.95 0.008 85);
+  --secondary-foreground: oklch(0.25 0.02 255);
+  --muted: oklch(0.95 0.008 85);
+  --muted-foreground: oklch(0.5 0.02 255);
+  --accent: oklch(0.94 0.012 255);
+  --accent-foreground: oklch(0.25 0.04 255);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.9 0.01 85);
+  --input: oklch(0.9 0.01 85);
+  --ring: oklch(0.5 0.1 255);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}

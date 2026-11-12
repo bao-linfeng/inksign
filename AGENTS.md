@@ -16,7 +16,8 @@ These come from the PRD and must hold for every change:
 ## Workspace boundaries
 
 - Use Node.js >=24.22 and root-pinned pnpm 11.25.0 (older 24.x on Windows randomly kills Vitest forks with native exit 0xC0000409, reported as "Worker exited unexpectedly"). Install from the root with `pnpm install --frozen-lockfile`; dependency edits update the single root lockfile. Root workspace settings enforce a 24-hour minimum release age and list the dependency build scripts that may run (`allowBuilds`).
-- Workspace globs are `apps/*` and `packages/*`. The app is `apps/web` (Vue 3 + Vite, not created yet; see PRD §11 M1 and the layout in PRD §13).
+- Workspace globs are `apps/*` and `packages/*`. The app is `apps/web` (Vue 3 + Vite + Pinia, layout in PRD §13). It has no router: the home view and the editor workspace are switched by state.
+- PDF.js goes through `apps/web/src/services/pdfjs.ts` only (worker URL and asset URLs). Its runtime assets (`cmaps`, `standard_fonts`, `wasm`, `iccs`) are copied from the installed `pdfjs-dist` into the git-ignored `apps/web/public/pdfjs/` by the `inksign:pdfjs-assets` plugin in `vite.config.ts` on every dev/build start; never commit or hand-edit them. Load PDF.js and `@cantoo/pdf-lib` lazily (dynamic `import()`) from the editor, not from the home view.
 - The repository is Vue-only: there is no React code.
 - Shared code lives in Just-in-Time packages that export source directly (no build step, no TypeScript `paths` used by their sources):
   - `@repo/ui` (`packages/ui`): shadcn-vue components (`@repo/ui/components/<name>`), `cn` (`@repo/ui/lib/utils`) and the shared Tailwind 4 setup (`@repo/ui/styles/theme.css`). Component sources import each other with relative paths and are excluded from ESLint to stay diffable against upstream.
@@ -28,10 +29,11 @@ These come from the PRD and must hold for every change:
 
 Run these from the repository root; directory targeting avoids guessing package names.
 
-| Scope | Focused verification                                                                                   |
-| ----- | ------------------------------------------------------------------------------------------------------ |
-| UI    | `pnpm -C packages/ui lint`, `pnpm -C packages/ui check-types`                                          |
-| Utils | `pnpm -C packages/utils lint:fix`, `pnpm -C packages/utils check-types`, `pnpm -C packages/utils test` |
+| Scope | Development                   | Focused verification                                                                                    |
+| ----- | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Web   | `pnpm -C apps/web dev` (5020) | `pnpm -C apps/web lint:fix`, `pnpm -C apps/web build` (includes Vue typecheck), `pnpm -C apps/web test` |
+| UI    | —                             | `pnpm -C packages/ui lint`, `pnpm -C packages/ui check-types`                                           |
+| Utils | —                             | `pnpm -C packages/utils lint:fix`, `pnpm -C packages/utils check-types`, `pnpm -C packages/utils test`  |
 
 - Root `lint`, `check-types`, `test`, `test:coverage` and `build` run through Turbo over every workspace that defines the script. Typechecks and tests bypass Turbo cache; builds cache `dist/**`.
 - All tests use Vitest from the root catalog. Tests live in `src/**/__tests__/*.test.ts` and opt into DOM with `// @vitest-environment happy-dom`. Single test: `pnpm -C packages/utils test src/__tests__/theme.test.ts`.

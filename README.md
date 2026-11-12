@@ -10,15 +10,15 @@
 
 pnpm workspace + Turborepo monorepo，纯静态前端，没有服务端（理由见 PRD 第 14 节）。
 
-| 目录                         | 用途                                                   |
-| ---------------------------- | ------------------------------------------------------ |
-| `apps/web`                   | 墨签应用（Vue 3 + Vite），尚未创建，见 PRD 里程碑 M1   |
-| `packages/ui`                | `@repo/ui`：shadcn-vue 组件 + 共享 Tailwind 4 主题映射 |
-| `packages/utils`             | `@repo/utils`：框架无关的样式与主题工具                |
-| `packages/eslint-config`     | 基于 Antfu 的共享 ESLint 配置                          |
-| `packages/typescript-config` | 共享 tsconfig                                          |
-| `deploy/`                    | 静态站点的 Nginx 配置（含 CSP）与 Caddy 网关           |
-| `docs/`                      | 产品需求文档                                           |
+| 目录                         | 用途                                                       |
+| ---------------------------- | ---------------------------------------------------------- |
+| `apps/web`                   | 墨签应用（Vue 3 + Vite），开发地址 `http://localhost:5020` |
+| `packages/ui`                | `@repo/ui`：shadcn-vue 组件 + 共享 Tailwind 4 主题映射     |
+| `packages/utils`             | `@repo/utils`：框架无关的样式与主题工具                    |
+| `packages/eslint-config`     | 基于 Antfu 的共享 ESLint 配置                              |
+| `packages/typescript-config` | 共享 tsconfig                                              |
+| `deploy/`                    | 静态站点的 Nginx 配置（含 CSP）与 Caddy 网关               |
+| `docs/`                      | 产品需求文档                                               |
 
 技术栈：Vue 3.5、Vite 8、TypeScript 6、Tailwind CSS 4、shadcn-vue（reka-ui）、`@lucide/vue`；PDF 预览用 `pdfjs-dist`，导出用 `@cantoo/pdf-lib`。共享依赖的版本写在根 `pnpm-workspace.yaml` 的 `catalog:` 中。
 
@@ -33,6 +33,14 @@ pnpm install --frozen-lockfile
 ```
 
 新增或修改依赖后运行 `pnpm install` 更新根锁文件。工作区对新发布依赖设置了 24 小时等待期，允许执行的依赖构建脚本列在根 `pnpm-workspace.yaml`。
+
+## 本地开发
+
+```sh
+pnpm -C apps/web dev   # http://localhost:5020，端口被占用时报错而不是换端口
+```
+
+启动和构建时会把 `pdfjs-dist` 的字体映射、标准字体与 wasm 解码器复制到 `apps/web/public/pdfjs/`（已加入 `.gitignore`），由站点自身提供。
 
 ## 检查与测试
 

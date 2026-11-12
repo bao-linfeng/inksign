@@ -147,8 +147,9 @@ InkSign（墨签）是一款**免费优先、轻量、隐私优先的浏览器�
 - PDF.js 资源全部自托管，构建时从 `pdfjs-dist` 复制到静态目录：
   - `cMapUrl`（`cmaps/`）与 `standardFontDataUrl`（`standard_fonts/`）：缺失时中文/日文等 CJK 字体 PDF 可能乱码或空白。
   - `wasmUrl`（`wasm/`）：pdfjs-dist 6.x 使用 WebAssembly 解码 JPEG2000、JBIG2 图像及色彩管理，同时自带无 wasm 回退。
+  - `iccUrl`（`iccs/`）：色彩管理使用的 ICC 配置文件。
   - Worker 文件同源加载。
-- 安全配置：`isEvalSupported: false`、`enableScripting: false`（不执行 PDF 内嵌 JavaScript），不渲染 PDF 中的 HTML 内容。
+- 安全配置：pdfjs-dist 6.x 已不再使用 `eval`（v1.2 草稿中的 `isEvalSupported` 选项已被移除）；不接入 PDF.js 的脚本沙箱（不执行 PDF 内嵌 JavaScript），`enableXfa: false`，不渲染 PDF 中的 HTML 内容。
 - 画布按 `devicePixelRatio` 渲染以保证高分屏清晰度，同时对单页像素数设置上限，防止移动端内存溢出。
 
 **验收：**
