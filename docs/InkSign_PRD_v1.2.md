@@ -368,22 +368,22 @@ type DateField = {
 
 ## 7. 技术方案
 
-| 层次       | 选型                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------ |
-| 前端       | Vue 3.5 + TypeScript 6 + Vite 8                                                                        |
-| UI         | Tailwind CSS 4 + shadcn-vue（复用模板 `@repo/ui`，基于 reka-ui）                                       |
-| 图标       | `@lucide/vue`（打包进产物，无 CDN）                                                                    |
-| PDF 预览   | `pdfjs-dist` 6.x，Worker 同源加载；cmaps / standard_fonts / wasm 自托管                                |
-| PDF 导出   | `@cantoo/pdf-lib`（维护中的 pdf-lib 分支）                                                             |
-| 签名画板   | `signature_pad` 5.x（Canvas 2D + Pointer Events）                                                      |
-| 拖动/缩放  | 自行实现（Pointer Events），可借助 `@vueuse/core` 的事件工具                                           |
-| 签名库存储 | IndexedDB + `idb` 8.x（轻量 Promise 封装，持续维护）                                                   |
-| 签名加密   | Web Crypto API（PBKDF2 + AES-GCM），浏览器原生，无额外依赖                                             |
-| 日期渲染   | Canvas 2D 渲染为 PNG，复用签名导出管线                                                                 |
-| 状态       | Pinia 4 或精简 composables（不引入不必要的全局状态；store 不做持久化，签名库由专门服务读写 IndexedDB） |
-| 测试       | Vitest 4（单元，含坐标映射、加密往返）+ Playwright（端到端与视觉比对）                                 |
-| 部署       | 静态网站（Nginx / Caddy / Cloudflare Pages 等），按第 8 节配置 CSP                                     |
-| 运行环境   | Node.js ≥ 24.22，pnpm 11.25（与模板一致）                                                              |
+| 层次       | 选型                                                                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 前端       | Vue 3.5 + TypeScript 6 + Vite 8                                                                                                                                             |
+| UI         | Tailwind CSS 4 + shadcn-vue（复用模板 `@repo/ui`，基于 reka-ui）                                                                                                            |
+| 图标       | `@lucide/vue`（打包进产物，无 CDN）                                                                                                                                         |
+| PDF 预览   | `pdfjs-dist` 6.x **legacy 构建**（主构建依赖 `Uint8Array.toHex` 等新 API，旧版 Safari/iOS 与微信内置浏览器无法使用），Worker 同源加载；cmaps / standard_fonts / wasm 自托管 |
+| PDF 导出   | `@cantoo/pdf-lib`（维护中的 pdf-lib 分支）                                                                                                                                  |
+| 签名画板   | `signature_pad` 5.x（Canvas 2D + Pointer Events）                                                                                                                           |
+| 拖动/缩放  | 自行实现（Pointer Events），可借助 `@vueuse/core` 的事件工具                                                                                                                |
+| 签名库存储 | IndexedDB + `idb` 8.x（轻量 Promise 封装，持续维护）                                                                                                                        |
+| 签名加密   | Web Crypto API（PBKDF2 + AES-GCM），浏览器原生，无额外依赖                                                                                                                  |
+| 日期渲染   | Canvas 2D 渲染为 PNG，复用签名导出管线                                                                                                                                      |
+| 状态       | Pinia 4 或精简 composables（不引入不必要的全局状态；store 不做持久化，签名库由专门服务读写 IndexedDB）                                                                      |
+| 测试       | Vitest 4（单元，含坐标映射、加密往返）+ Playwright（端到端与视觉比对）                                                                                                      |
+| 部署       | 静态网站（Nginx / Caddy / Cloudflare Pages 等），按第 8 节配置 CSP                                                                                                          |
+| 运行环境   | Node.js ≥ 24.22，pnpm 11.25（与模板一致）                                                                                                                                   |
 
 **选型原则：** 只选用仍在持续发版、有明确维护者的库；新增依赖前需评审其维护状态与体积。已排除：原版 `pdf-lib`（2021 年后无新版本）、`vue3-moveable`（2023 年后无更新）。
 

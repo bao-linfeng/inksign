@@ -1,7 +1,9 @@
 import type { DocumentInitParameters } from 'pdfjs-dist/types/src/display/api'
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 
+// The legacy build: the modern one relies on very recent APIs (e.g. Uint8Array.prototype.toHex on
+// every load), which older Safari/iOS and WeChat's built-in browser lack.
 // The worker and every runtime asset come from our own origin (PRD FR-02, FR-07); vite.config.ts
 // copies the assets into public/pdfjs.
 GlobalWorkerOptions.workerSrc = workerUrl
