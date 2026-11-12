@@ -1,4 +1,5 @@
 import type { PageGeometry } from '../coordinate-transform'
+import type { SaveMode } from '../pdf-exporter'
 import type { Placement, PlacementRect } from '@/types/signature'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -22,7 +23,7 @@ function bottomRight(geometry: PageGeometry): PlacementRect {
   return { xRatio: 0.6, yRatio: 0.92 - heightRatio, widthRatio, heightRatio }
 }
 
-async function signEveryPage(original: Uint8Array) {
+async function signEveryPage(original: Uint8Array, saveMode: SaveMode = 'auto') {
   const pages = (await inspectPages(original)).map(page => page.geometry)
   const placements: Placement[] = pages.map((geometry, pageIndex) => ({
     id: `p${pageIndex}`,
@@ -30,15 +31,18 @@ async function signEveryPage(original: Uint8Array) {
     pageIndex,
     ...bottomRight(geometry),
   }))
-  const signed = await exportSignedPdf({ originalBytes: original, pages, images, placements })
+  const { bytes: signed } = await exportSignedPdf({ originalBytes: original, pages, images, placements, saveMode })
   return { pages, placements, signed }
 }
 
 describe('exportSignedPdf', () => {
   // PRD §10 cases 1-5: the image must land exactly on the placed rectangle and read upright
   describe.each(pdfFixtures)('$name: $description', (fixture) => {
-    it('draws the signature upright at the placed rectangle', async () => {
-      const { placements, signed } = await signEveryPage(await fixture.build())
+    it.each(['rewrite', 'incremental'] as const)('draws the signature upright at the placed rectangle (%s)', async (mode) => {
+      const original = await fixture.build()
+      const { placements, signed } = await signEveryPage(original, mode)
+      if (mode === 'incremental')
+        expect(signed.subarray(0, original.length)).toEqual(original)
       const exported = await inspectPages(signed)
 
       exported.forEach((page, pageIndex) => {
@@ -72,6 +76,19 @@ describe('exportSignedPdf', () => {
     expect((await inspectPages(signed))[0]!.unscopedTransforms).toBe(0)
   })
 
+  it('rewrites a PDF without digital signatures by default', async () => {
+    const original = await pdfFixtures.find(f => f.name === 'broken-xref')!.build()
+    const pages = (await inspectPages(original)).map(page => page.geometry)
+    const result = await exportSignedPdf({ originalBytes: original, pages, images, placements: [] })
+
+    expect(result.incremental).toBe(false)
+    // A rewrite also repairs the damaged structure: the new xref points at real objects
+    const text = new TextDecoder('latin1').decode(result.bytes)
+    const startxref = Number(/startxref\s+(\d+)/.exec(text.slice(text.lastIndexOf('startxref')))![1])
+    // A classic xref table or an xref stream object
+    expect(text.slice(startxref, startxref + 20)).toMatch(/^(?:xref|\d+ \d+ obj)/)
+  })
+
   it('embeds a signature once however often it is placed (PRD §10 case 16)', async () => {
     const original = await pdfFixtures.find(f => f.name === 'a4-portrait')!.build()
     const pages = (await inspectPages(original)).map(page => page.geometry)
@@ -79,8 +96,8 @@ describe('exportSignedPdf', () => {
     const placements = (count: number): Placement[] =>
       Array.from({ length: count }, (_, i) => ({ id: `p${i}`, sourceId: 'sig', pageIndex: 0, ...rect, yRatio: 0.05 + i * 0.08 }))
 
-    const once = await exportSignedPdf({ originalBytes: original, pages, images, placements: placements(1) })
-    const tenTimes = await exportSignedPdf({ originalBytes: original, pages, images, placements: placements(10) })
+    const { bytes: once } = await exportSignedPdf({ originalBytes: original, pages, images, placements: placements(1) })
+    const { bytes: tenTimes } = await exportSignedPdf({ originalBytes: original, pages, images, placements: placements(10) })
 
     expect(await countImageObjects(tenTimes)).toBe(await countImageObjects(once))
     expect((await inspectPages(tenTimes))[0]!.images).toHaveLength(10)
@@ -93,7 +110,7 @@ describe('exportSignedPdf', () => {
     const placement: Placement = { id: 'p0', sourceId: 'sig', pageIndex: 0, ...bottomRight(pages[0]!) }
 
     await exportSignedPdf({ originalBytes: original, pages, images, placements: [placement] })
-    const second = await exportSignedPdf({ originalBytes: original, pages, images, placements: [{ ...placement, xRatio: 0.1 }] })
+    const { bytes: second } = await exportSignedPdf({ originalBytes: original, pages, images, placements: [{ ...placement, xRatio: 0.1 }] })
 
     expect(original).toEqual(before)
     const [image] = (await inspectPages(second))[0]!.images

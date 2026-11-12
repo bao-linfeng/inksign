@@ -1,6 +1,6 @@
 # Repository guidance
 
-InkSign (墨签) is a browser-only PDF visual-signature tool. The product spec is `docs/InkSign_PRD_v1.2.md`; read the relevant FR sections before implementing a feature, and keep the spec in sync when a decision changes.
+InkSign (墨签) is a browser-only PDF visual-signature tool. The product spec is `docs/InkSign_PRD_v1.3.md`; read the relevant FR sections before implementing a feature, and keep the spec in sync when a decision changes.
 
 ## Product invariants
 
@@ -9,7 +9,7 @@ These come from the PRD and must hold for every change:
 - No backend. Nothing the user opens or creates is sent over the network: PDFs, file names, signatures and dates stay in the browser. Do not add API clients, analytics SDKs or third-party CDNs (fonts, icons and PDF.js assets are self-hosted).
 - PDFs and file names are never persisted (no localStorage, IndexedDB, Cache Storage). Signatures are persisted only when the user explicitly saves them to the signature library (FR-08), optionally encrypted with a PIN through Web Crypto.
 - The output is a visual signature, not a certificate-based digital signature. UI copy must never claim legal validity or tamper protection.
-- Preview uses `pdfjs-dist`, export uses `@cantoo/pdf-lib` (the maintained pdf-lib fork; do not add the original `pdf-lib`). Export always re-composes from the original bytes kept in memory.
+- Preview uses `pdfjs-dist`, export uses `@cantoo/pdf-lib` (the maintained pdf-lib fork; do not add the original `pdf-lib`). Export always re-composes from the original bytes kept in memory. When the PDF carries digital signatures the export must be an incremental update (original bytes kept as an exact prefix, so those signatures stay valid); otherwise it rewrites the file. `exportSignedPdf` decides this (`saveMode: 'auto'`); `apps/web/src/services/__tests__/pdf-exporter.signatures.test.ts` proves it with real OpenSSL signatures. Certified documents (DocMDP) cannot keep their certification and must be warned about on import (PRD FR-01).
 - Coordinates are stored as ratios of the visible (rotated, CropBox) viewport and mapped back with the algorithm in PRD §6. Any change to that mapping needs the rotation/CropBox fixture tests.
 - Only add dependencies that are actively maintained; ask before adding any new dependency.
 

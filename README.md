@@ -4,7 +4,7 @@
 
 > 墨签提供的是**可视化签名**（把签名图像写入 PDF），不是基于数字证书的数字签名，不提供身份核验、时间戳或法律效力保证。
 
-产品需求、技术方案与里程碑见 [docs/InkSign_PRD_v1.2.md](docs/InkSign_PRD_v1.2.md)。
+产品需求、技术方案与里程碑见 [docs/InkSign_PRD_v1.3.md](docs/InkSign_PRD_v1.3.md)。
 
 ## 项目结构
 

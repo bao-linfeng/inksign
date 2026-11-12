@@ -21,7 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "samples:pdf": "WRITE_SAMPLES=1 vitest run src/services/__tests__/pdf-exporter.test.ts"
+    "samples:pdf": "WRITE_SAMPLES=1 vitest run src/services/__tests__/pdf-exporter"
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",

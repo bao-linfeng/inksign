@@ -96,4 +96,20 @@ export const pdfFixtures: PdfFixture[] = [
       return doc.save()
     },
   },
+  {
+    name: 'broken-xref',
+    description: 'Every xref offset is wrong (bytes inserted after the header), as in files edited by naive tools',
+    async build() {
+      const doc = await PDFDocument.create()
+      await label(doc, doc.addPage(PageSizes.A4), 'broken-xref')
+      const bytes = await doc.save({ useObjectStreams: false })
+      const headerEnd = bytes.indexOf(0x0A) + 1
+      const junk = new TextEncoder().encode('% padding inserted after the xref was written\n')
+      const broken = new Uint8Array(bytes.length + junk.length)
+      broken.set(bytes.subarray(0, headerEnd))
+      broken.set(junk, headerEnd)
+      broken.set(bytes.subarray(headerEnd), headerEnd + junk.length)
+      return broken
+    },
+  },
 ]
