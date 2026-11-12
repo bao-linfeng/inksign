@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { FileUp, PenLine } from '@lucide/vue'
-import { Button } from '@repo/ui/components/button'
-import { useTemplateRef } from 'vue'
+import { CircleAlert, FileUp } from '@lucide/vue'
+import { Alert, AlertDescription } from '@repo/ui/components/alert'
+import { Spinner } from '@repo/ui/components/spinner'
+
+import AppLogo from '@/components/AppLogo.vue'
+import PdfFileButton from '@/components/PdfFileButton.vue'
+
+defineProps<{
+  /** A PDF is being read and checked */
+  loading?: boolean
+  /** Why the last file could not be opened */
+  error?: string | null
+  /** A file is being dragged over the window (dropping is handled by the app) */
+  dragging?: boolean
+}>()
 
 const emit = defineEmits<{ select: [file: File] }>()
-
-const fileInput = useTemplateRef('fileInput')
-
-function onFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  // Reset so choosing the same file again still fires change
-  input.value = ''
-  if (file)
-    emit('select', file)
-}
 </script>
 
 <template>
   <div class="flex min-h-svh flex-col">
-    <header class="flex items-center gap-2 px-6 py-4">
-      <PenLine class="size-5 text-primary" aria-hidden="true" />
-      <span class="font-semibold">墨签 InkSign</span>
+    <header class="flex h-14 items-center px-4 sm:px-6">
+      <AppLogo />
     </header>
 
     <main class="flex flex-1 flex-col items-center justify-center px-6 pb-16 text-center">
@@ -32,19 +32,24 @@ function onFileChange(event: Event) {
         无需注册 · 文件在本地处理 · 一键导出
       </p>
 
-      <Button size="lg" class="mt-8" @click="fileInput?.click()">
-        <FileUp aria-hidden="true" />
-        选择 PDF 文件
-      </Button>
-      <input
-        ref="fileInput"
-        type="file"
-        accept="application/pdf,.pdf"
-        class="sr-only"
-        tabindex="-1"
-        aria-hidden="true"
-        @change="onFileChange"
+      <div
+        class="mt-8 flex w-full max-w-md flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 transition-colors"
+        :class="dragging ? 'border-primary bg-accent' : 'border-border'"
       >
+        <PdfFileButton size="lg" :disabled="loading" @select="emit('select', $event)">
+          <Spinner v-if="loading" aria-label="正在打开" />
+          <FileUp v-else aria-hidden="true" />
+          {{ loading ? '正在打开…' : '选择 PDF 文件' }}
+        </PdfFileButton>
+        <p class="text-sm text-muted-foreground">
+          {{ dragging ? '松开即可打开' : '或将 PDF 拖到此处' }}
+        </p>
+      </div>
+
+      <Alert v-if="error" variant="destructive" class="mt-4 max-w-md text-left">
+        <CircleAlert aria-hidden="true" />
+        <AlertDescription>{{ error }}</AlertDescription>
+      </Alert>
 
       <p class="mt-10 max-w-md text-xs text-muted-foreground">
         本工具提供可视化签名，不等同于证书数字签名。

@@ -113,3 +113,18 @@ export const pdfFixtures: PdfFixture[] = [
     },
   },
 ]
+
+async function encrypted(name: string, security: Parameters<PDFDocument['encrypt']>[0]) {
+  const doc = await PDFDocument.create()
+  await label(doc, doc.addPage(PageSizes.A4), name)
+  doc.encrypt(security)
+  return doc.save()
+}
+
+/** Encrypted samples for the import checks (PRD FR-01); they cannot be exported, so not in `pdfFixtures`. */
+export const encryptedFixtures = {
+  /** Needs a password to open */
+  openPassword: () => encrypted('open-password', { userPassword: 'open', ownerPassword: 'owner' }),
+  /** Opens without a password but restricts editing (owner password only) */
+  ownerPassword: () => encrypted('owner-password', { ownerPassword: 'owner', permissions: { modifying: false } }),
+}

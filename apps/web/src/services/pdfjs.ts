@@ -20,9 +20,10 @@ export const pdfjsAssetOptions = {
 } satisfies DocumentInitParameters
 
 /**
- * Opens a PDF for preview. PDF.js transfers the buffer it receives to its worker, so it gets a copy
- * and the caller's bytes stay usable for export.
+ * Starts loading a PDF for preview; `destroy()` the returned task (or `pdf.loadingTask`) when done
+ * to stop its worker. PDF.js transfers the buffer it receives to the worker, so it gets a copy and
+ * the caller's bytes stay usable for export.
  */
 export function openPdf(bytes: Uint8Array) {
-  return getDocument({ ...pdfjsAssetOptions, data: bytes.slice() }).promise
+  return getDocument({ ...pdfjsAssetOptions, data: bytes.slice() })
 }

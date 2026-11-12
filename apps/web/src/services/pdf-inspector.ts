@@ -1,6 +1,21 @@
 import type { PDFDocument } from '@cantoo/pdf-lib'
 import { PDFAcroSignature, PDFArray, PDFDict, PDFName, PDFNumber } from '@cantoo/pdf-lib'
 
+const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2D] // %PDF-
+
+/**
+ * Whether `%PDF-` starts within the first 1024 bytes, where viewers look for it (PRD FR-01). File
+ * extension and MIME type are not trusted.
+ */
+export function hasPdfHeader(bytes: Uint8Array): boolean {
+  const last = Math.min(bytes.length - PDF_SIGNATURE.length, 1023)
+  for (let i = 0; i <= last; i++) {
+    if (PDF_SIGNATURE.every((byte, j) => bytes[i + j] === byte))
+      return true
+  }
+  return false
+}
+
 /** DocMDP permissions of a certification signature: 1 no changes, 2 form filling and signing, 3 also annotations. */
 export type CertificationPermission = 1 | 2 | 3
 

@@ -23,4 +23,23 @@ describe('homeView', () => {
     expect(wrapper.emitted('select')).toEqual([[file]])
     expect((input.element as HTMLInputElement).value).toBe('')
   })
+
+  it('disables the button while a file is being opened', () => {
+    const wrapper = mount(HomeView, { props: { loading: true } })
+
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('正在打开')
+  })
+
+  it('shows why the last file failed, so the user can pick another', () => {
+    const wrapper = mount(HomeView, { props: { error: '请选择 PDF 格式文件。' } })
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('请选择 PDF 格式文件。')
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+  })
+
+  it('invites dropping while a file is dragged over the window', () => {
+    expect(mount(HomeView).text()).toContain('或将 PDF 拖到此处')
+    expect(mount(HomeView, { props: { dragging: true } }).text()).toContain('松开即可打开')
+  })
 })
