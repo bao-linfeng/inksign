@@ -32,5 +32,7 @@ const { status } = usePageRender(holder, () => ({ pdf: props.pdf, pageIndex: pro
     >
       {{ status === 'error' ? '此页无法显示' : `第 ${pageIndex + 1} 页` }}
     </div>
+    <!-- Overlay in page coordinates (e.g. placed signatures); sized by percentages, so zoom-proof -->
+    <slot />
   </section>
 </template>

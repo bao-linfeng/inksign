@@ -15,6 +15,11 @@ const props = defineProps<{
   pages: readonly PreviewPage[]
 }>()
 
+defineSlots<{
+  /** Drawn over each page, e.g. the signature layer */
+  page?: (props: { pageIndex: number, page: PreviewPage }) => unknown
+}>()
+
 /** Horizontal and top padding around the pages, in CSS pixels (matches `px-6 pt-6`) */
 const PADDING = 24
 
@@ -162,7 +167,9 @@ onBeforeUnmount(() => {
             :page="page"
             :zoom="zoom"
             :active="activePages.has(index)"
-          />
+          >
+            <slot name="page" :page-index="index" :page="page" />
+          </PdfPage>
         </div>
       </div>
 

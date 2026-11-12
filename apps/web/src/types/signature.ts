@@ -15,3 +15,15 @@ export interface Placement extends PlacementRect {
   /** Shared by the instances created together by batch signing (FR-10) */
   groupId?: string
 }
+
+/** A signature usable in this session: drawn, uploaded or (later) unlocked from the library (PRD §6). */
+export interface SignatureSource {
+  id: string
+  kind: 'draw' | 'image' | 'date'
+  /** Kept in memory only and embedded as is on export */
+  pngBytes: Uint8Array
+  /** Object URL of `pngBytes`; revoked when the source is removed */
+  previewUrl: string
+  naturalWidth: number
+  naturalHeight: number
+}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ImportedPdf } from '@/services/pdf-import'
-import { CircleAlert, Download, FileText, FolderOpen, ShieldAlert, X } from '@lucide/vue'
+import { CircleAlert, Download, FileText, FolderOpen, MousePointerClick, Plus, ShieldAlert, X } from '@lucide/vue'
 import { Alert, AlertDescription } from '@repo/ui/components/alert'
 import {
   AlertDialog,
@@ -14,11 +14,17 @@ import {
 } from '@repo/ui/components/alert-dialog'
 import { Button } from '@repo/ui/components/button'
 import { Spinner } from '@repo/ui/components/spinner'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AppLogo from '@/components/AppLogo.vue'
+import ExportDialog from '@/components/ExportDialog.vue'
 import PdfViewer from '@/components/pdf/PdfViewer.vue'
 import PdfFileButton from '@/components/PdfFileButton.vue'
+import SignatureDialog from '@/components/signature/SignatureDialog.vue'
+import SignatureLayer from '@/components/signature/SignatureLayer.vue'
+import SignaturePanel from '@/components/signature/SignaturePanel.vue'
+import { downloadBytes, signedFileName } from '@/services/download'
+import { useSigningStore } from '@/stores/signing'
 
 const props = defineProps<{
   doc: ImportedPdf
@@ -46,6 +52,56 @@ const approvalSigned = computed(() => !certified.value && props.doc.signatures.s
 // PRD FR-01: signing breaks a certification, so the user has to accept that first
 const certificationAccepted = ref(false)
 const confirmingCertification = computed(() => certified.value && !certificationAccepted.value)
+
+const signing = useSigningStore()
+const creating = ref(false)
+const armed = computed(() => signing.armedSourceId !== null)
+
+function onCreate(kind: 'draw' | 'image' | 'date', image: Parameters<typeof signing.addSource>[1]) {
+  signing.arm(signing.addSource(kind, image).id)
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && armed.value)
+    signing.arm(null)
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+const exportFileName = computed(() => signedFileName(props.doc.fileName))
+const exportOpen = ref(false)
+const exporting = ref(false)
+const exportError = ref<string | null>(null)
+const signedPages = computed(() => new Set(signing.placements.map(p => p.pageIndex)).size)
+
+function startExport() {
+  exportError.value = null
+  exportOpen.value = true
+}
+
+/** Re-composes from the original bytes every time (PRD §7) and downloads the result. */
+async function runExport() {
+  exporting.value = true
+  exportError.value = null
+  try {
+    const { exportSignedPdf } = await import('@/services/pdf-exporter')
+    const { bytes } = await exportSignedPdf({
+      originalBytes: props.doc.bytes,
+      pages: props.doc.pages.map(page => page.geometry),
+      images: new Map(signing.sources.map(source => [source.id, source.pngBytes])),
+      placements: signing.placements,
+    })
+    downloadBytes(bytes, exportFileName.value, 'application/pdf')
+    signing.markExported()
+    exportOpen.value = false
+  }
+  catch {
+    exportError.value = '导出失败，请重试或尝试较小的 PDF。'
+  }
+  finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -71,8 +127,10 @@ const confirmingCertification = computed(() => certified.value && !certification
         <FolderOpen v-else aria-hidden="true" />
         <span class="max-sm:sr-only">重新打开</span>
       </PdfFileButton>
-      <!-- Enabled once signatures can be placed (M2) -->
-      <Button size="sm" disabled>
+      <Button variant="outline" size="sm" class="md:hidden" aria-label="添加签名" @click="creating = true">
+        <Plus aria-hidden="true" />
+      </Button>
+      <Button size="sm" :disabled="!signing.placements.length" :title="signing.placements.length ? undefined : '请先放置签名'" @click="startExport">
         <Download aria-hidden="true" />
         <span class="max-sm:sr-only">导出 PDF</span>
       </Button>
@@ -99,7 +157,39 @@ const confirmingCertification = computed(() => certified.value && !certification
       <AlertDescription>此文件经过认证签名，添加签名后认证将显示为无效。</AlertDescription>
     </Alert>
 
-    <PdfViewer :pdf="doc.pdf" :pages="doc.pages" class="flex-1" />
+    <div class="relative flex min-h-0 flex-1">
+      <PdfViewer :pdf="doc.pdf" :pages="doc.pages" class="min-w-0 flex-1">
+        <template #page="{ pageIndex, page }">
+          <SignatureLayer :page-index="pageIndex" :page="page" />
+        </template>
+      </PdfViewer>
+      <SignaturePanel class="w-64 shrink-0 border-l border-sidebar-border max-md:hidden" @create="creating = true" />
+
+      <div v-if="armed" class="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-3" role="status">
+        <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg">
+          <MousePointerClick class="size-4" aria-hidden="true" />
+          点击页面放置签名
+          <button
+            type="button"
+            class="rounded-full px-2.5 py-0.5 text-xs text-background/80 outline-none hover:bg-background/15 focus-visible:ring-2 focus-visible:ring-background"
+            @click="signing.arm(null)"
+          >
+            取消 <kbd class="ml-0.5 font-sans opacity-70 max-sm:hidden">Esc</kbd>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <SignatureDialog v-model:open="creating" @create="onCreate" />
+    <ExportDialog
+      v-model:open="exportOpen"
+      :file-name="exportFileName"
+      :placements="signing.placements.length"
+      :pages="signedPages"
+      :busy="exporting"
+      :error="exportError"
+      @confirm="runExport"
+    />
 
     <!-- Controlled: only the two buttons close it -->
     <AlertDialog :open="confirmingCertification">

@@ -1,16 +1,28 @@
 // @vitest-environment happy-dom
 import type { ImportedPdf } from '@/services/pdf-import'
 import type { DigitalSignatureInfo } from '@/services/pdf-inspector'
-import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { downloadBytes } from '@/services/download'
+import { exportSignedPdf } from '@/services/pdf-exporter'
+import { useSigningStore } from '@/stores/signing'
 
 import EditorView from '../EditorView.vue'
+
+vi.mock('@/services/pdf-exporter', () => ({ exportSignedPdf: vi.fn() }))
+vi.mock('@/services/download', async importOriginal => ({
+  ...await importOriginal<typeof import('@/services/download')>(),
+  downloadBytes: vi.fn(),
+}))
 
 const APPROVAL_NOTICE = '此文件已包含数字签名。添加签名后原签名本身不会被破坏，但阅读器可能提示签名后文档被修改。'
 const CERTIFICATION_WARNING = '此文件经过认证签名，添加签名后认证将显示为无效。'
 
 function doc(signatures: DigitalSignatureInfo = { signedFields: 0 }): ImportedPdf {
-  return { fileName: '合同-2026.pdf', bytes: new Uint8Array(), pdf: {}, pages: [], signatures } as unknown as ImportedPdf
+  const geometry = { view: [0, 0, 595, 842], rotation: 0 }
+  return { fileName: '合同-2026.pdf', bytes: new Uint8Array([1]), pdf: {}, pages: [{ geometry, width: 595, height: 842 }], signatures } as unknown as ImportedPdf
 }
 
 function mountEditor(props: { doc: ImportedPdf, loading?: boolean, error?: string | null }) {
@@ -23,8 +35,14 @@ function mountEditor(props: { doc: ImportedPdf, loading?: boolean, error?: strin
 }
 
 describe('editorView', () => {
-  afterEach(() => {
-    document.body.innerHTML = ''
+  // Also removes the teleported dialogs from <body>
+  enableAutoUnmount(afterEach)
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:signature')
+    vi.mocked(exportSignedPdf).mockReset()
+    vi.mocked(downloadBytes).mockReset()
   })
 
   it('shows the file name in the top bar', () => {
@@ -85,5 +103,71 @@ describe('editorView', () => {
     await input.trigger('change')
 
     expect(wrapper.emitted('select')).toEqual([[file]])
+  })
+
+  it('exports only once something is placed, after showing the legal notice (FR-06)', async () => {
+    const wrapper = mountEditor({ doc: doc() })
+    const exportButton = () => wrapper.findAll('header button').find(button => button.text().includes('导出 PDF'))!
+    expect(exportButton().attributes('disabled')).toBeDefined()
+
+    const signing = useSigningStore()
+    const source = signing.addSource('draw', { pngBytes: new Uint8Array([9]), width: 300, height: 100 })
+    signing.arm(source.id)
+    signing.place(0, { xRatio: 0.6, yRatio: 0.8, widthRatio: 0.25, heightRatio: 0.06 })
+    await flushPromises()
+    await exportButton().trigger('click')
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('不等同于证书数字签名')
+    expect(dialog.textContent).toContain('合同-2026_signed.pdf')
+
+    vi.mocked(exportSignedPdf).mockResolvedValue({ bytes: new Uint8Array([7]), incremental: false })
+    ;[...dialog.querySelectorAll('button')].find(button => button.textContent?.includes('导出并下载'))!.click()
+    await flushPromises()
+
+    expect(exportSignedPdf).toHaveBeenCalledWith({
+      originalBytes: new Uint8Array([1]),
+      pages: [{ view: [0, 0, 595, 842], rotation: 0 }],
+      images: new Map([[source.id, new Uint8Array([9])]]),
+      placements: signing.placements,
+    })
+    expect(downloadBytes).toHaveBeenCalledWith(new Uint8Array([7]), '合同-2026_signed.pdf', 'application/pdf')
+    expect(signing.hasUnexported).toBe(false)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('keeps the dialog open with a retry when the export fails', async () => {
+    const wrapper = mountEditor({ doc: doc() })
+    const signing = useSigningStore()
+    signing.arm(signing.addSource('draw', { pngBytes: new Uint8Array(), width: 3, height: 1 }).id)
+    signing.place(0, { xRatio: 0, yRatio: 0, widthRatio: 0.2, heightRatio: 0.1 })
+    vi.mocked(exportSignedPdf).mockRejectedValue(new Error('boom'))
+    await flushPromises()
+
+    await wrapper.findAll('header button').find(button => button.text().includes('导出 PDF'))!.trigger('click')
+    await flushPromises()
+    ;[...document.body.querySelectorAll('[role="dialog"] button')].find(button => button.textContent?.includes('导出并下载'))!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('导出失败，请重试或尝试较小的 PDF。')
+    expect(dialog.textContent).toContain('重试')
+    expect(downloadBytes).not.toHaveBeenCalled()
+    expect(signing.hasUnexported).toBe(true)
+  })
+
+  it('shows a placing hint while a signature is armed and cancels it with Esc', async () => {
+    const wrapper = mountEditor({ doc: doc() })
+    const signing = useSigningStore()
+    signing.arm(signing.addSource('draw', { pngBytes: new Uint8Array(), width: 3, height: 1 }).id)
+    await flushPromises()
+    expect(wrapper.text()).toContain('点击页面放置签名')
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+
+    expect(signing.armedSourceId).toBeNull()
+    expect(wrapper.text()).not.toContain('点击页面放置签名')
   })
 })
