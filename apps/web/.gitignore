@@ -1,2 +1,5 @@
 # Copied from pdfjs-dist by vite.config.ts
 public/pdfjs/
+
+# Sample PDFs written by `pnpm samples:pdf` for checking exports in real viewers
+tests/fixtures/out/

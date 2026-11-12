@@ -351,14 +351,18 @@ type DateField = {
 
 坐标统一以 PDF.js 渲染后的**可见页面视口左上角**为原点存储相对比例；导出时根据页面原始旋转、CropBox/MediaBox、视口变换矩阵和 PDF 坐标系进行反向映射，避免对旋转页、裁剪页直接用 `pageHeight - y` 的简单公式。
 
-**导出映射算法（`coordinate-transform.ts`）：**
+**导出映射算法（`apps/web/src/services/coordinate-transform.ts`，已验证）：**
 
-1. 对目标页取 `viewport = page.getViewport({ scale: 1 })`（PDF.js 默认应用页面 `/Rotate`，视口原点为可见页面左上角，`page.view` 已考虑 CropBox）。
-2. 由比例还原视口坐标：`x = xRatio·W`、`y = yRatio·H`、`w = widthRatio·W`、`h = heightRatio·H`，其中 `W/H` 为 `viewport.width/height`。
-3. 签名在屏幕上是正向显示的，其**左下角**在视口中为 `(x, y + h)`。用 `viewport.convertToPdfPoint(x, y + h)` 得到 PDF 用户空间中的绘制原点 `(px, py)`；该函数已包含 CropBox 偏移与旋转逆变换。
-4. 规范化旋转角 `r = ((page.rotate % 360) + 360) % 360`。
-5. 调用 `pdfPage.drawImage(img, { x: px, y: py, width: w, height: h, rotate: degrees(r) })`。阅读器显示时会将页面顺时针旋转 `r`，而图像预先逆时针旋转 `r`，两者抵消后显示为正向。`width/height` 取视口方向上的尺寸，不需要对调。
-6. 该算法须由第 10 节用例 4、5 的自动化测试验证后方可视为完成。
+1. 预览时记录每页的几何信息：PDF.js 的 `page.view`（CropBox 与 MediaBox 的交集，用户空间 `[x0, y0, x1, y1]`）和 `page.rotate`（已规范化为 0/90/180/270，非 90 倍数按 0 处理，与 PDF.js 一致）。
+2. 可见页面尺寸取用户空间单位：`W = x1 − x0`、`H = y1 − y0`，旋转 90°/270° 时对调。**不使用 `viewport.width/height`**：PDF.js 6 的视口会乘以页面 `/UserUnit`，而导出写入的是用户空间坐标。
+3. 由比例还原可见坐标：`x = xRatio·W`、`y = yRatio·H`、`w = widthRatio·W`、`h = heightRatio·H`。
+4. 签名在屏幕上正向显示，其**左下角**在可见页面中为 `(x, y + h)`，按旋转角换算为 PDF 用户空间的绘制原点 `(px, py)`：
+   - 0°：`(x0 + vx, y1 − vy)`；90°：`(x0 + vy, y0 + vx)`；180°：`(x1 − vx, y0 + vy)`；270°：`(x1 − vy, y1 − vx)`。
+   - 该换算与 PDF.js `viewport.convertToPdfPoint` 逐点一致（由测试保证）。
+5. 调用 `pdfPage.drawImage(img, { x: px, y: py, width: w, height: h, rotate: degrees(r) })`。阅读器显示时会将页面顺时针旋转 `r`，而图像预先逆时针旋转 `r`，两者抵消后显示为正向。`width/height` 取可见方向上的尺寸，不需要对调。
+6. 原页面内容若遗留未闭合的坐标变换（`cm` 不在 `q … Q` 内），会影响之后追加的签名。`@cantoo/pdf-lib` 加载已有页面后首次绘制时会自动用 `q … Q` 包裹原内容（`autoNormalizeCTM`），已有专门样本验证。
+
+**验证方式：** 导出后用 PDF.js 重新解析页面的绘制指令，独立计算签名图像四个角在可见页面上的位置，与放置矩形逐角比对（误差 < 10⁻⁶）。这比像素比对更严格，且能区分旋转、镜像。样本覆盖：A4、旋转 90/180/270、`/Rotate -90`、从页面树继承的 `/Rotate`、CropBox 偏移（含叠加旋转）、MediaBox 偏移、`/UserUnit 2`、原内容遗留变换、横竖混排多页。
 
 批量签名（FR-10）在视口坐标（PDF 点）中计算锚点与边距，再换算为各页的比例存入 `Placement`，导出时仍走上述算法。
 
@@ -455,14 +459,14 @@ type DateField = {
 21. 10 页合同“全部页”批量签名 + 末页添加日期，导出后各页位置正确、日期中文显示正常。
 22. 批量签名后单独移动某页实例，其它页不受影响；“删除整组”只删除该组。
 
-**测试样本集：** 用例 3、4、5 的 PDF 由脚本使用 `@cantoo/pdf-lib` 程序化生成（设置 `/Rotate`、CropBox），存放在 `tests/fixtures/`；另收集少量真实文件（扫描件、含表单、含 CJK 字体、已签名文件、多页合同）。
+**测试样本集：** 用例 3、4、5 的 PDF 由 `apps/web/tests/fixtures/pdf-fixtures.ts` 使用 `@cantoo/pdf-lib` 在测试中即时生成（不提交二进制文件）；`pnpm -C apps/web samples:pdf` 会把每个样本及其签名后的导出写到 `apps/web/tests/fixtures/out/`，用于在 Chrome / Edge / Acrobat Reader 中人工核对（用例 11）。另需收集少量真实文件（扫描件、含表单、含 CJK 字体、已签名文件、多页合同）。
 
 ## 11. 开发里程碑与任务拆分
 
 ### M1 · 项目骨架与预览
 
-- [ ] 清理模板，初始化 `apps/web`（Vue 3 + TypeScript + Vite），接入 `@repo/ui`
-- [ ] **坐标映射技术验证（优先）：** 生成旋转/CropBox 测试样本，跑通“放置 → 导出 → 重新渲染比对”，验证第 6 节算法
+- [x] 清理模板，初始化 `apps/web`（Vue 3 + TypeScript + Vite），接入 `@repo/ui`
+- [x] **坐标映射技术验证（优先）：** 生成旋转/CropBox 测试样本，跑通“放置 → 导出 → 重新解析比对”，验证第 6 节算法
 - [ ] 接入基础布局、文件导入组件及校验（文件头、加密、已有签名检测）
 - [ ] 接入 PDF.js Worker、自托管资源、页面渲染和缩放
 - [ ] 实现状态、加载与错误处理
