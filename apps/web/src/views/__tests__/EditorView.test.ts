@@ -12,6 +12,10 @@ import { useSigningStore } from '@/stores/signing'
 import EditorView from '../EditorView.vue'
 
 vi.mock('@/services/pdf-exporter', () => ({ exportSignedPdf: vi.fn() }))
+vi.mock('@/services/date-renderer', async importOriginal => ({
+  ...await importOriginal<typeof import('@/services/date-renderer')>(),
+  renderDateImage: vi.fn(async () => ({ pngBytes: new Uint8Array([7]), width: 600, height: 100 })),
+}))
 vi.mock('@/services/download', async importOriginal => ({
   ...await importOriginal<typeof import('@/services/download')>(),
   downloadBytes: vi.fn(),
@@ -50,6 +54,43 @@ describe('editorView', () => {
 
     expect(wrapper.get('header').text()).toContain('合同-2026.pdf')
     expect(wrapper.text()).not.toContain('数字签名')
+  })
+
+  it('opens mobile tools and returns to the PDF when a source is armed', async () => {
+    const wrapper = mountEditor({ doc: doc() })
+    const toggle = wrapper.get('[aria-controls="signature-tools"]')
+    const tools = wrapper.get('#signature-tools')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(tools.classes()).toContain('max-md:hidden')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(tools.classes()).not.toContain('max-md:hidden')
+    expect(tools.text()).toContain('日期')
+
+    const signing = useSigningStore()
+    signing.arm(signing.addSource('image', { pngBytes: new Uint8Array([1]), width: 300, height: 100 }).id)
+    await flushPromises()
+
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.text()).toContain('点击页面放置签名')
+  })
+
+  it('creates a date from mobile tools and closes them for placement', async () => {
+    const wrapper = mountEditor({ doc: doc() })
+    await wrapper.get('[aria-controls="signature-tools"]').trigger('click')
+    await wrapper.findAll('#signature-tools button').find(button => button.text() === '日期')!.trigger('click')
+    await flushPromises()
+
+    const confirm = [...document.body.querySelectorAll('[role="dialog"] button')].find(button => button.textContent?.trim() === '使用此日期') as HTMLButtonElement
+    expect(confirm).toBeDefined()
+    confirm.click()
+    await flushPromises()
+
+    const signing = useSigningStore()
+    expect(signing.sourceOf(signing.armedSourceId!)?.kind).toBe('date')
+    expect(wrapper.get('[aria-controls="signature-tools"]').attributes('aria-expanded')).toBe('false')
+    expect(wrapper.text()).toContain('点击页面放置日期')
   })
 
   it('warns that existing approval signatures will be reported as modified (FR-01)', () => {

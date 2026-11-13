@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ImportedPdf } from '@/services/pdf-import'
-import { CircleAlert, Download, FileText, FolderOpen, MousePointerClick, Plus, ShieldAlert, X } from '@lucide/vue'
+import { CircleAlert, Download, FileText, FolderOpen, MousePointerClick, Plus, ShieldAlert, SlidersHorizontal, X } from '@lucide/vue'
 import { Alert, AlertDescription } from '@repo/ui/components/alert'
 import {
   AlertDialog,
@@ -14,7 +14,7 @@ import {
 } from '@repo/ui/components/alert-dialog'
 import { Button } from '@repo/ui/components/button'
 import { Spinner } from '@repo/ui/components/spinner'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AppLogo from '@/components/AppLogo.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
@@ -55,6 +55,17 @@ const confirmingCertification = computed(() => certified.value && !certification
 
 const signing = useSigningStore()
 const creating = ref(false)
+const toolsOpen = ref(false)
+watch(() => signing.armedSourceId, (sourceId) => {
+  if (sourceId)
+    toolsOpen.value = false
+})
+
+function createSignature() {
+  toolsOpen.value = false
+  creating.value = true
+}
+
 const armed = computed(() => signing.armedSourceId !== null)
 const armedNoun = computed(() => (signing.armedSourceId && signing.sourceOf(signing.armedSourceId)?.kind === 'date' ? '日期' : '签名'))
 
@@ -128,9 +139,6 @@ async function runExport() {
         <FolderOpen v-else aria-hidden="true" />
         <span class="max-sm:sr-only">重新打开</span>
       </PdfFileButton>
-      <Button variant="outline" size="sm" class="md:hidden" aria-label="添加签名" @click="creating = true">
-        <Plus aria-hidden="true" />
-      </Button>
       <Button size="sm" :disabled="!signing.placements.length" :title="signing.placements.length ? undefined : '请先放置签名'" @click="startExport">
         <Download aria-hidden="true" />
         <span class="max-sm:sr-only">导出 PDF</span>
@@ -158,13 +166,19 @@ async function runExport() {
       <AlertDescription>此文件经过认证签名，添加签名后认证将显示为无效。</AlertDescription>
     </Alert>
 
-    <div class="relative flex min-h-0 flex-1">
+    <div class="relative flex min-h-0 flex-1 max-md:flex-col">
       <PdfViewer :pdf="doc.pdf" :pages="doc.pages" class="min-w-0 flex-1">
         <template #page="{ pageIndex, page }">
           <SignatureLayer :page-index="pageIndex" :page="page" />
         </template>
       </PdfViewer>
-      <SignaturePanel :pages="doc.pages" class="w-64 shrink-0 border-l border-sidebar-border max-md:hidden" @create="creating = true" />
+      <SignaturePanel
+        id="signature-tools"
+        :pages="doc.pages"
+        class="shrink-0 border-sidebar-border max-md:max-h-[50svh] max-md:border-t md:w-64 md:border-l"
+        :class="!toolsOpen && 'max-md:hidden'"
+        @create="createSignature"
+      />
 
       <div v-if="armed" class="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-3" role="status">
         <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg">
@@ -180,6 +194,17 @@ async function runExport() {
         </div>
       </div>
     </div>
+
+    <nav aria-label="签名操作" class="flex shrink-0 gap-2 border-t bg-background px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
+      <Button class="min-h-11 flex-1" @click="createSignature">
+        <Plus aria-hidden="true" />
+        添加签名
+      </Button>
+      <Button variant="outline" class="min-h-11 flex-1" aria-controls="signature-tools" :aria-expanded="toolsOpen" @click="toolsOpen = !toolsOpen">
+        <SlidersHorizontal aria-hidden="true" />
+        {{ toolsOpen ? '收起工具' : signing.selected ? '编辑选中项' : '签名与日期' }}
+      </Button>
+    </nav>
 
     <SignatureDialog v-model:open="creating" @create="onCreate" />
     <ExportDialog

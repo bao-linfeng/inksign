@@ -98,7 +98,7 @@ function onBatchConfirm(pageIndexes: number[]) {
 </script>
 
 <template>
-  <aside aria-label="签名" class="flex min-h-0 flex-col bg-sidebar">
+  <aside aria-label="签名" class="signature-panel flex min-h-0 flex-col bg-sidebar">
     <div class="flex h-10 shrink-0 items-center justify-between border-b border-sidebar-border px-4 text-xs">
       <span class="font-medium text-sidebar-foreground">签名</span>
       <span v-if="signing.placements.length" class="text-muted-foreground tabular-nums">
@@ -147,7 +147,7 @@ function onBatchConfirm(pageIndexes: number[]) {
             >
               {{ countBySource.get(source.id) }} 处
             </span>
-            <div class="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 has-focus-visible:opacity-100">
+            <div class="source-actions absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 has-focus-visible:opacity-100">
               <button
                 v-if="source.kind === 'date'"
                 type="button"
@@ -213,3 +213,18 @@ function onBatchConfirm(pageIndexes: number[]) {
     <BatchDialog v-model:open="batchOpen" :page-count="pages.length" :existing-pages="existingPages" :noun="selectedNoun" @confirm="onBatchConfirm" />
   </aside>
 </template>
+
+<style scoped>
+@media (max-width: 767px), (pointer: coarse) {
+  .signature-panel :deep(button) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .source-actions {
+    position: static;
+    justify-content: flex-end;
+    opacity: 1;
+  }
+}
+</style>

@@ -1,7 +1,7 @@
 # HANDOFF
 
 > Updated: 2026-11-13
-> Task: 继续未完成的 FR-08 本设备签名库，完成 M3 实现与自动化验证。
+> Task: M3 已提交；继续 M4，补齐移动端签名与日期工具入口。
 
 ## 1. Goal
 
@@ -9,6 +9,9 @@
 
 ## 2. Completed
 
+- M3 已提交并推送至 `origin/main`：`ed4c612`（本设备签名库与可选 PIN 加密）。
+- 本轮 M4：移动端新增底部添加/工具入口，展开同一签名面板，日期和批量操作不再因隐藏侧栏而不可达；选用待放置素材时自动收起工具区。
+- 本轮 M4：触屏工具面板按钮至少 44 px，素材修改/移除操作不依赖 hover；新增移动工具展开与日期创建的组件测试。
 - 接续原有未提交的 IndexedDB、Web Crypto、library store 和测试实现，完成首页与编辑器界面接入。
 - 首页“我的签名（N）”支持不打开 PDF 创建与管理签名；编辑器添加签名默认显示非空签名库。
 - 默认不勾选保存；首次保存需确认存储风险及合同场景说明。支持名称、可选 PIN、PNG 备份、失败提示。
@@ -33,6 +36,7 @@
 
 ### Validation
 
+- 本轮移动端改动由独立 subagent 验证：`lint:fix`、`build`、`test` 均通过；26 个文件、221 项通过、2 项跳过、0 失败。界面机械检测对两个改动组件返回 `[]`；不等于真实浏览器或物理触屏验收。
 - Lint: `pnpm -C apps/web lint:fix` 通过。
 - Build / Typecheck: `pnpm -C apps/web build` 通过，包含测试类型检查。
 - Tests: 使用本机 Git OpenSSL 临时加入 PATH 后，`pnpm -C apps/web test` 最终 26 文件通过，219 项通过，2 项样例生成按条件跳过，0 失败。真实数字签名导出及导入回归通过。
@@ -41,7 +45,7 @@
 
 ### Git State
 
-- 所有开发变更未提交；开始时已存在签名库基础代码及 `fake-indexeddb` devDependency / lockfile 修改，本轮继续沿用。
+- M3 已提交；本轮移动端工具改动尚未提交。
 - `docs/InkSign-Logo图标.zip` 为开始时已有的未跟踪文件，未操作。
 
 ## 4. Blockers / Unresolved Issues
@@ -53,7 +57,7 @@
 
 1. CDP 可用后验收首页创建、保存加密签名、刷新后锁定、选用并导出 PDF、PNG 备份回导及移动端对话框。
 2. 核对 PRD M4 剩余事项与实际代码，推进质量/部署验收；M4 清单包含部分早已实现的内容，需要以仓库为准。
-3. 用户要求时再提交本轮代码。
+3. 用户要求时再提交本轮 M4 代码；新增 Playwright 依赖前需征得同意（仓库尚无 Playwright 配置或依赖）。
 
 ## 6. Decisions and Constraints
 
@@ -69,4 +73,4 @@
 
 ## 8. Resume Context
 
-先读本文件、PRD FR-08/M4、`SignatureDialog.vue`、`library.ts`，再检查 `git status` 和 `git diff`。M3 自动化验证已完成，下一步优先真实浏览器验收。
+先读本文件、PRD M4、`EditorView.vue` 和 `SignaturePanel.vue`，再检查 `git status` 和 `git diff`。M3 已提交，当前继续移动端工具与质量验证，真实浏览器验收仍待完成。
