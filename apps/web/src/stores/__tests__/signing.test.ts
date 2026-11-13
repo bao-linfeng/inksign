@@ -24,6 +24,19 @@ describe('signing store', () => {
     expect(signing.sourceOf(source.id)).toStrictEqual(source)
   })
 
+  it('reuses a library signature that is already in the session (PRD FR-08)', () => {
+    const signing = useSigningStore()
+
+    const first = signing.addFromLibrary('lib-1', image)
+    const again = signing.addFromLibrary('lib-1', image)
+    const other = signing.addFromLibrary('lib-2', image)
+
+    expect(first).toMatchObject({ kind: 'image', libraryId: 'lib-1', naturalWidth: 300 })
+    expect(again.id).toBe(first.id)
+    expect(other.id).not.toBe(first.id)
+    expect(signing.sources).toHaveLength(2)
+  })
+
   it('places the armed signature once, then selects it', () => {
     const signing = useSigningStore()
     const source = signing.addSource('draw', image)

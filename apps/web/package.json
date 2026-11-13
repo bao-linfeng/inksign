@@ -43,6 +43,7 @@
     "@vitest/coverage-v8": "catalog:",
     "@vue/test-utils": "catalog:",
     "eslint": "catalog:",
+    "fake-indexeddb": "^6.2.8",
     "happy-dom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

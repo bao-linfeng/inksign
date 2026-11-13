@@ -37,6 +37,10 @@ export const useSigningStore = defineStore('signing', () => {
   const previewUrlOf = (image: SignatureImage) => URL.createObjectURL(new Blob([image.pngBytes as BlobPart], { type: 'image/png' }))
 
   function addSource(kind: SignatureSource['kind'], image: SignatureImage, date?: DateField): SignatureSource {
+    return pushSource(kind, image, date && { date })
+  }
+
+  function pushSource(kind: SignatureSource['kind'], image: SignatureImage, extra?: Pick<SignatureSource, 'date' | 'libraryId'>) {
     const source: SignatureSource = {
       id: newId('s'),
       kind,
@@ -44,10 +48,15 @@ export const useSigningStore = defineStore('signing', () => {
       previewUrl: previewUrlOf(image),
       naturalWidth: image.width,
       naturalHeight: image.height,
-      ...(date && { date }),
+      ...extra,
     }
     sources.value.push(source)
     return source
+  }
+
+  /** A library signature (PRD FR-08) as a session signature; using it twice reuses the first one. */
+  function addFromLibrary(libraryId: string, image: SignatureImage): SignatureSource {
+    return sources.value.find(source => source.libraryId === libraryId) ?? pushSource('image', image, { libraryId })
   }
 
   /**
@@ -197,6 +206,7 @@ export const useSigningStore = defineStore('signing', () => {
     hasUnexported,
     sourceOf,
     addSource,
+    addFromLibrary,
     replaceImage,
     removeSource,
     arm,

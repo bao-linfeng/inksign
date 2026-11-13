@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { CircleAlert, FileUp } from '@lucide/vue'
+import { CircleAlert, FileUp, PenLine } from '@lucide/vue'
 import { Alert, AlertDescription } from '@repo/ui/components/alert'
+import { Button } from '@repo/ui/components/button'
 import { Spinner } from '@repo/ui/components/spinner'
+import { defineAsyncComponent, ref } from 'vue'
 
 import AppLogo from '@/components/AppLogo.vue'
 import PdfFileButton from '@/components/PdfFileButton.vue'
+import { useLibraryStore } from '@/stores/library'
 
 defineProps<{
   /** A PDF is being read and checked */
@@ -14,14 +17,20 @@ defineProps<{
   /** A file is being dragged over the window (dropping is handled by the app) */
   dragging?: boolean
 }>()
-
 const emit = defineEmits<{ select: [file: File] }>()
+const SignatureDialog = defineAsyncComponent(() => import('@/components/signature/SignatureDialog.vue'))
+const library = useLibraryStore()
+const libraryOpen = ref(false)
+void library.load()
 </script>
 
 <template>
   <div class="flex min-h-svh flex-col">
-    <header class="flex h-14 items-center px-4 sm:px-6">
+    <header class="flex h-14 items-center justify-between px-4 sm:px-6">
       <AppLogo />
+      <Button variant="ghost" size="sm" @click="libraryOpen = true">
+        <PenLine aria-hidden="true" /> 我的签名（{{ library.entries.length }}）
+      </Button>
     </header>
 
     <main class="flex flex-1 flex-col items-center justify-center px-6 pb-16 text-center">
@@ -55,5 +64,6 @@ const emit = defineEmits<{ select: [file: File] }>()
         本工具提供可视化签名，不等同于证书数字签名。
       </p>
     </main>
+    <SignatureDialog v-if="libraryOpen" v-model:open="libraryOpen" save-only />
   </div>
 </template>

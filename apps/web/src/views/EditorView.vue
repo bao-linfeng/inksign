@@ -58,8 +58,8 @@ const creating = ref(false)
 const armed = computed(() => signing.armedSourceId !== null)
 const armedNoun = computed(() => (signing.armedSourceId && signing.sourceOf(signing.armedSourceId)?.kind === 'date' ? '日期' : '签名'))
 
-function onCreate(kind: 'draw' | 'image' | 'date', image: Parameters<typeof signing.addSource>[1]) {
-  signing.arm(signing.addSource(kind, image).id)
+function onCreate(kind: 'draw' | 'image' | 'date', image: Parameters<typeof signing.addSource>[1], libraryId?: string) {
+  signing.arm((libraryId ? signing.addFromLibrary(libraryId, image) : signing.addSource(kind, image)).id)
 }
 
 function onKeydown(event: KeyboardEvent) {

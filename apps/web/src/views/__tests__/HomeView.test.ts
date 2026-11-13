@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import HomeView from '../HomeView.vue'
 
 describe('homeView', () => {
+  beforeEach(() => setActivePinia(createPinia()))
   it('states the privacy promise and the visual-signature boundary', () => {
     const wrapper = mount(HomeView)
 
@@ -27,7 +29,7 @@ describe('homeView', () => {
   it('disables the button while a file is being opened', () => {
     const wrapper = mount(HomeView, { props: { loading: true } })
 
-    expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('button').find(button => button.text().includes('正在打开'))!.attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('正在打开')
   })
 

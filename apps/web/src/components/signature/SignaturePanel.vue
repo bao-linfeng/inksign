@@ -110,7 +110,7 @@ function onBatchConfirm(pageIndexes: number[]) {
       <div class="grid grid-cols-[1fr_auto] gap-2">
         <Button @click="$emit('create')">
           <Plus aria-hidden="true" />
-          新建签名
+          添加签名
         </Button>
         <Button variant="outline" title="添加签署日期" @click="openDate(null, null)">
           <CalendarPlus aria-hidden="true" />
@@ -119,7 +119,7 @@ function onBatchConfirm(pageIndexes: number[]) {
       </div>
 
       <p v-if="!signing.sources.length" class="rounded-lg border border-dashed px-4 py-6 text-center text-sm leading-relaxed text-muted-foreground">
-        手写或上传一个签名，<br>然后点击页面放置。
+        手写、上传或选用已保存的签名，<br>然后点击页面放置。
       </p>
 
       <section v-else class="flex flex-col gap-2">
