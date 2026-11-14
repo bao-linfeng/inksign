@@ -90,21 +90,18 @@ function confirm() {
 
         <div class="flex flex-col gap-2">
           <span id="date-color" class="text-sm font-medium">颜色</span>
-          <div class="flex items-center gap-2" role="radiogroup" aria-labelledby="date-color">
-            <button
+          <RadioGroup v-model="color" class="flex items-center gap-2" aria-labelledby="date-color">
+            <RadioGroupItem
               v-for="option in INK_COLORS"
               :key="option.value"
-              type="button"
-              role="radio"
-              :aria-checked="color === option.value"
+              :value="option.value"
               :aria-label="option.name"
               :title="option.name"
               class="size-7 rounded-full ring-offset-2 ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
               :class="color === option.value && 'ring-2 ring-primary'"
               :style="{ backgroundColor: option.value }"
-              @click="color = option.value"
             />
-          </div>
+          </RadioGroup>
         </div>
 
         <!-- Same font and colour as the rendered image -->

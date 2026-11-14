@@ -134,12 +134,12 @@ async function runExport() {
           </p>
         </div>
       </div>
-      <PdfFileButton variant="ghost" size="sm" :disabled="loading" @select="emit('select', $event)">
+      <PdfFileButton variant="ghost" size="sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" :disabled="loading" @select="emit('select', $event)">
         <Spinner v-if="loading" aria-label="正在打开" />
         <FolderOpen v-else aria-hidden="true" />
         <span class="max-sm:sr-only">重新打开</span>
       </PdfFileButton>
-      <Button size="sm" :disabled="!signing.placements.length" :title="signing.placements.length ? undefined : '请先放置签名'" @click="startExport">
+      <Button size="sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" :disabled="!signing.placements.length" :title="signing.placements.length ? undefined : '请先放置签名'" @click="startExport">
         <Download aria-hidden="true" />
         <span class="max-sm:sr-only">导出 PDF</span>
       </Button>
@@ -184,13 +184,9 @@ async function runExport() {
         <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-foreground py-1.5 pr-1.5 pl-4 text-sm text-background shadow-lg">
           <MousePointerClick class="size-4" aria-hidden="true" />
           点击页面放置{{ armedNoun }}
-          <button
-            type="button"
-            class="rounded-full px-2.5 py-0.5 text-xs text-background/80 outline-none hover:bg-background/15 focus-visible:ring-2 focus-visible:ring-background"
-            @click="signing.arm(null)"
-          >
+          <Button variant="ghost" size="sm" class="h-auto rounded-full px-2.5 py-0.5 text-xs text-background/80 hover:bg-background/15 hover:text-background focus-visible:ring-background" @click="signing.arm(null)">
             取消 <kbd class="ml-0.5 font-sans opacity-70 max-sm:hidden">Esc</kbd>
-          </button>
+          </Button>
         </div>
       </div>
     </div>

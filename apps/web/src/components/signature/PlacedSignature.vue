@@ -2,6 +2,7 @@
 import type { Corner, PageSize } from '@/services/placement'
 import type { Placement, PlacementRect } from '@/types/signature'
 import { X } from '@lucide/vue'
+import { Button } from '@repo/ui/components/button'
 import { useTemplateRef, watch } from 'vue'
 
 import { moveBy, resizeFromCorner } from '@/services/placement'
@@ -165,16 +166,16 @@ watch(() => props.selected, (selected) => {
       >
         <span class="size-3 rounded-full border-2 border-primary bg-white shadow-sm" />
       </span>
-      <button
-        type="button"
-        class="absolute -top-9 right-0 grid size-6 place-items-center rounded-full bg-destructive text-white shadow-md outline-none hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-ring"
+      <Button
+        size="icon-sm"
+        class="absolute -top-9 right-0 rounded-full bg-destructive text-white shadow-md hover:bg-destructive/90 focus-visible:ring-ring max-md:-top-15 max-md:size-11 pointer-coarse:-top-15 pointer-coarse:size-11"
         :aria-label="`删除此${label ?? '签名'}`"
         title="删除"
         @pointerdown.stop
         @click.stop="emit('remove')"
       >
         <X class="size-3.5" />
-      </button>
+      </Button>
     </template>
   </div>
 </template>

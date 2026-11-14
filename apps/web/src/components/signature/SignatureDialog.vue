@@ -4,6 +4,7 @@ import type { SignatureSource } from '@/types/signature'
 import { CircleAlert, Download } from '@lucide/vue'
 import { Alert, AlertDescription } from '@repo/ui/components/alert'
 import { Button } from '@repo/ui/components/button'
+import { Checkbox } from '@repo/ui/components/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -158,7 +159,7 @@ function acceptAndSave() {
 
       <fieldset v-if="tab !== 'library'" class="flex flex-col gap-3 rounded-lg border p-3" :disabled="busy">
         <label class="flex items-center gap-2 text-sm font-medium">
-          <input v-model="save" type="checkbox" class="size-4 accent-primary" :disabled="!library.available || library.full">
+          <Checkbox v-model="save" :disabled="!library.available || library.full" />
           保存到本设备
         </label>
         <p v-if="!library.available || library.full" class="text-xs text-muted-foreground">
@@ -173,7 +174,7 @@ function acceptAndSave() {
             <Input id="signature-name" v-model="name" :maxlength="SIGNATURE_NAME_MAX_LENGTH" placeholder="例如：全名、简签" />
           </div>
           <label class="flex items-center gap-2 text-sm">
-            <input v-model="protect" type="checkbox" class="size-4 accent-primary" :disabled="!library.canEncrypt">
+            <Checkbox v-model="protect" :disabled="!library.canEncrypt" />
             使用 PIN 保护
           </label>
           <p v-if="!library.canEncrypt" class="text-xs text-muted-foreground">

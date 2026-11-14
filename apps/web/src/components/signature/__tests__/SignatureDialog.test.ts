@@ -50,7 +50,7 @@ async function input(id: string, value: string) {
 
 async function checkbox(label: string) {
   const el = [...document.body.querySelectorAll('label')].find(el => el.textContent?.includes(label))!
-  el.querySelector<HTMLInputElement>('input')!.click()
+  el.querySelector<HTMLElement>('[role="checkbox"]')!.click()
   await flushPromises()
 }
 
@@ -85,7 +85,7 @@ describe('signatureDialog library flow', () => {
 
   it('keeps a new signature in memory unless saving is explicitly selected', async () => {
     const wrapper = await mountDialog()
-    expect(document.body.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(false)
+    expect(document.body.querySelector('[role="checkbox"]')!.getAttribute('aria-checked')).toBe('false')
     await click('模拟手写')
     await click('使用此签名')
 

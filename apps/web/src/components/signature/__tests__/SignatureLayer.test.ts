@@ -62,6 +62,22 @@ describe('signatureLayer', () => {
     wrapper.unmount()
   })
 
+  it('keeps an enlarged delete target separate from resize handles on touch screens', async () => {
+    const wrapper = placeAt(250, 250)
+    await wrapper.vm.$nextTick()
+    const remove = wrapper.get('button[aria-label="删除此签名"]')
+    expect(remove.classes()).toEqual(expect.arrayContaining([
+      'max-md:size-11',
+      'pointer-coarse:size-11',
+      'max-md:-top-15',
+      'pointer-coarse:-top-15',
+    ]))
+    await remove.trigger('pointerdown')
+    await remove.trigger('click')
+    expect(signing.placements).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('deselects when the page is clicked without an armed signature', async () => {
     const wrapper = placeAt(250, 250)
     await wrapper.vm.$nextTick()

@@ -147,26 +147,29 @@ function onBatchConfirm(pageIndexes: number[]) {
             >
               {{ countBySource.get(source.id) }} 处
             </span>
-            <div class="source-actions absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 has-focus-visible:opacity-100">
-              <button
+            <div class="source-actions absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 has-focus-visible:opacity-100 max-md:static max-md:justify-end max-md:opacity-100 pointer-coarse:static pointer-coarse:justify-end pointer-coarse:opacity-100">
+              <Button
                 v-if="source.kind === 'date'"
-                type="button"
-                class="grid size-6 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                variant="ghost"
+                size="icon-sm"
+                class="text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="修改此日期"
                 title="修改此日期"
                 @click="openDate(source.id, null)"
               >
                 <Pencil class="size-3.5" />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 type="button"
-                class="grid size-6 place-items-center rounded-md text-muted-foreground outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
+                class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 :aria-label="`移除此${source.kind === 'date' ? '日期' : '签名'}及其所有放置`"
                 :title="`移除此${source.kind === 'date' ? '日期' : '签名'}及其所有放置`"
                 @click="signing.removeSource(source.id)"
               >
                 <X class="size-3.5" />
-              </button>
+              </Button>
             </div>
           </li>
         </ul>
@@ -213,18 +216,3 @@ function onBatchConfirm(pageIndexes: number[]) {
     <BatchDialog v-model:open="batchOpen" :page-count="pages.length" :existing-pages="existingPages" :noun="selectedNoun" @confirm="onBatchConfirm" />
   </aside>
 </template>
-
-<style scoped>
-@media (max-width: 767px), (pointer: coarse) {
-  .signature-panel :deep(button) {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .source-actions {
-    position: static;
-    justify-content: flex-end;
-    opacity: 1;
-  }
-}
-</style>

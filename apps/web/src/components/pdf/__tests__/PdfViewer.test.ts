@@ -78,6 +78,20 @@ describe('pdfViewer', () => {
     expect(wrapper.text()).toContain('/ 3')
   })
 
+  it('wraps the toolbar without splitting page and zoom control groups', () => {
+    const wrapper = mount(PdfViewer, { props: { pdf: fakePdf().pdf, pages } })
+    const toolbar = wrapper.get('[role="toolbar"]')
+    expect(toolbar.classes()).toEqual(expect.arrayContaining(['max-w-full', 'flex-wrap']))
+    const previous = toolbar.get('[aria-label="上一页"]').element
+    const next = toolbar.get('[aria-label="下一页"]').element
+    const zoomOut = toolbar.get('[aria-label="缩小"]').element
+    const fit = toolbar.get('[aria-label="适合宽度"]').element
+    expect(previous.parentElement).toBe(next.parentElement)
+    expect(zoomOut.parentElement).toBe(fit.parentElement)
+    expect(previous.parentElement).not.toBe(zoomOut.parentElement)
+    expect(wrapper.get('section').element.parentElement?.classList.contains('pt-16')).toBe(true)
+  })
+
   it('renders only pages near the visible area (FR-02)', async () => {
     const { pdf, render } = fakePdf()
     const wrapper = mount(PdfViewer, { props: { pdf, pages } })

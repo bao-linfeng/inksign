@@ -172,18 +172,18 @@ async function confirm() {
               <Download aria-hidden="true" /> 下载 PNG 备份
             </Button>
             <div class="flex flex-wrap gap-x-3 gap-y-2 text-xs">
-              <button type="button" class="rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring" @click="ask('rename', entry)">
+              <Button variant="link" size="sm" class="h-auto p-0 text-xs" @click="ask('rename', entry)">
                 重命名
-              </button>
-              <button v-if="library.canEncrypt" type="button" class="rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring" @click="askPin(entry, entry.encrypted ? 'change' : 'set')">
+              </Button>
+              <Button v-if="library.canEncrypt" variant="link" size="sm" class="h-auto p-0 text-xs" @click="askPin(entry, entry.encrypted ? 'change' : 'set')">
                 {{ entry.encrypted ? '修改 PIN' : '设置 PIN' }}
-              </button>
-              <button v-if="entry.encrypted && library.canEncrypt" type="button" class="rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring" @click="askPin(entry, 'remove')">
+              </Button>
+              <Button v-if="entry.encrypted && library.canEncrypt" variant="link" size="sm" class="h-auto p-0 text-xs" @click="askPin(entry, 'remove')">
                 移除 PIN
-              </button>
-              <button type="button" class="rounded-sm text-destructive underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring" @click="ask('delete', entry)">
+              </Button>
+              <Button variant="link" size="sm" class="h-auto p-0 text-xs text-destructive" @click="ask('delete', entry)">
                 删除
-              </button>
+              </Button>
             </div>
           </div>
         </li>

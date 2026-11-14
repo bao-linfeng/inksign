@@ -56,6 +56,20 @@ describe('editorView', () => {
     expect(wrapper.text()).not.toContain('数字签名')
   })
 
+  it('gives header actions minimum touch targets on narrow and coarse-pointer screens', () => {
+    const wrapper = mountEditor({ doc: doc() })
+    const actions = wrapper.findAll('header button')
+    expect(actions).toHaveLength(2)
+    for (const action of actions) {
+      expect(action.classes()).toEqual(expect.arrayContaining([
+        'max-md:min-h-11',
+        'max-md:min-w-11',
+        'pointer-coarse:min-h-11',
+        'pointer-coarse:min-w-11',
+      ]))
+    }
+  })
+
   it('opens mobile tools and returns to the PDF when a source is armed', async () => {
     const wrapper = mountEditor({ doc: doc() })
     const toggle = wrapper.get('[aria-controls="signature-tools"]')

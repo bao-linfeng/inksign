@@ -3,6 +3,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import type { PreviewPage } from '@/services/pdf-import'
 import { ChevronDown, ChevronUp, MoveHorizontal, PanelLeft, ZoomIn, ZoomOut } from '@lucide/vue'
 import { Button } from '@repo/ui/components/button'
+import { Input } from '@repo/ui/components/input'
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef } from 'vue'
 
 import { clampZoom, fitWidthZoom, initialZoom, ZOOM_MAX, ZOOM_MIN, zoomIn, zoomOut } from '@/services/zoom'
@@ -20,8 +21,9 @@ defineSlots<{
   page?: (props: { pageIndex: number, page: PreviewPage }) => unknown
 }>()
 
-/** Horizontal and top padding around the pages, in CSS pixels (matches `px-6 pt-6`) */
+/** Horizontal padding around the pages, in CSS pixels (matches `px-6`) */
 const PADDING = 24
+const PAGE_TOP_CLEARANCE = 64
 
 const scroller = useTemplateRef('scroller')
 const column = useTemplateRef('column')
@@ -76,7 +78,7 @@ function goToPage(index: number) {
   const target = pageElement(index)
   if (!scroller.value || !target)
     return
-  scroller.value.scrollTo({ top: target.offsetTop - PADDING })
+  scroller.value.scrollTo({ top: target.offsetTop - PAGE_TOP_CLEARANCE })
   currentPage.value = index
 }
 
@@ -157,7 +159,7 @@ onBeforeUnmount(() => {
         aria-label="PDF 预览"
         @scroll="onScroll"
       >
-        <div ref="column" class="flex w-max min-w-full flex-col items-center gap-6 px-6 pt-6 pb-24">
+        <div ref="column" class="flex w-max min-w-full flex-col items-center gap-6 px-6 pt-16 pb-24">
           <PdfPage
             v-for="(page, index) in pages"
             :key="index"
@@ -178,11 +180,12 @@ onBeforeUnmount(() => {
         <div
           role="toolbar"
           aria-label="页面与缩放"
-          class="pointer-events-auto flex items-center gap-0.5 rounded-xl border bg-background/90 p-1 text-sm shadow-lg shadow-black/10 backdrop-blur-md"
+          class="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-0.5 rounded-xl border bg-background/90 p-1 text-sm shadow-lg shadow-black/10 backdrop-blur-md"
         >
           <Button
             variant="ghost"
             size="icon-sm"
+            class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
             :class="sidebarOpen && 'bg-accent text-accent-foreground'"
             :aria-label="sidebarOpen ? '隐藏缩略图' : '显示缩略图'"
             :title="sidebarOpen ? '隐藏缩略图' : '显示缩略图'"
@@ -194,37 +197,41 @@ onBeforeUnmount(() => {
 
           <span class="mx-1 h-5 w-px bg-border" aria-hidden="true" />
 
-          <Button variant="ghost" size="icon-sm" aria-label="上一页" title="上一页" :disabled="currentPage === 0" @click="goToPage(currentPage - 1)">
-            <ChevronUp />
-          </Button>
-          <input
-            :key="currentPage"
-            :value="currentPage + 1"
-            type="number"
-            inputmode="numeric"
-            min="1"
-            :max="pages.length"
-            class="h-7 w-10 [appearance:textfield] rounded-md border bg-background text-center tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-inner-spin-button]:appearance-none"
-            aria-label="跳转到页码"
-            @change="onPageInput"
-          >
-          <span class="px-1.5 text-muted-foreground tabular-nums">/ {{ pages.length }}</span>
-          <Button variant="ghost" size="icon-sm" aria-label="下一页" title="下一页" :disabled="currentPage >= pages.length - 1" @click="goToPage(currentPage + 1)">
-            <ChevronDown />
-          </Button>
+          <div class="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon-sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" aria-label="上一页" title="上一页" :disabled="currentPage === 0" @click="goToPage(currentPage - 1)">
+              <ChevronUp />
+            </Button>
+            <Input
+              :key="currentPage"
+              :value="currentPage + 1"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              :max="pages.length"
+              class="h-7 w-10 [appearance:textfield] rounded-md bg-background text-center tabular-nums [&::-webkit-inner-spin-button]:appearance-none max-md:h-11 max-md:min-w-11 pointer-coarse:h-11 pointer-coarse:min-w-11"
+              aria-label="跳转到页码"
+              @change="onPageInput"
+            />
+            <span class="px-1.5 text-muted-foreground tabular-nums">/ {{ pages.length }}</span>
+            <Button variant="ghost" size="icon-sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" aria-label="下一页" title="下一页" :disabled="currentPage >= pages.length - 1" @click="goToPage(currentPage + 1)">
+              <ChevronDown />
+            </Button>
+          </div>
 
           <span class="mx-1 h-5 w-px bg-border" aria-hidden="true" />
 
-          <Button variant="ghost" size="icon-sm" aria-label="缩小" title="缩小" :disabled="zoom <= ZOOM_MIN" @click="setZoom(zoomOut(zoom))">
-            <ZoomOut />
-          </Button>
-          <span class="w-11 text-center tabular-nums" aria-live="polite">{{ Math.round(zoom * 100) }}%</span>
-          <Button variant="ghost" size="icon-sm" aria-label="放大" title="放大" :disabled="zoom >= ZOOM_MAX" @click="setZoom(zoomIn(zoom))">
-            <ZoomIn />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="适合宽度" title="适合宽度" @click="setZoom(fitWidthZoom(availableWidth(), pageWidths()))">
-            <MoveHorizontal />
-          </Button>
+          <div class="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon-sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" aria-label="缩小" title="缩小" :disabled="zoom <= ZOOM_MIN" @click="setZoom(zoomOut(zoom))">
+              <ZoomOut />
+            </Button>
+            <span class="w-11 text-center tabular-nums" aria-live="polite">{{ Math.round(zoom * 100) }}%</span>
+            <Button variant="ghost" size="icon-sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" aria-label="放大" title="放大" :disabled="zoom >= ZOOM_MAX" @click="setZoom(zoomIn(zoom))">
+              <ZoomIn />
+            </Button>
+            <Button variant="ghost" size="icon-sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" aria-label="适合宽度" title="适合宽度" @click="setZoom(fitWidthZoom(availableWidth(), pageWidths()))">
+              <MoveHorizontal />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

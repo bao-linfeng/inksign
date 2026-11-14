@@ -2,6 +2,7 @@
 import type { SignatureImage } from '@/services/signature-image'
 import { Eraser } from '@lucide/vue'
 import { Button } from '@repo/ui/components/button'
+import { RadioGroup, RadioGroupItem } from '@repo/ui/components/radio-group'
 import SignaturePad from 'signature_pad'
 import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
@@ -99,21 +100,18 @@ defineExpose({ toImage })
     </div>
 
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2" role="radiogroup" aria-label="笔迹颜色">
-        <button
+      <RadioGroup v-model="color" class="flex items-center gap-2" aria-label="笔迹颜色">
+        <RadioGroupItem
           v-for="option in COLORS"
           :key="option.value"
-          type="button"
-          role="radio"
-          :aria-checked="color === option.value"
+          :value="option.value"
           :aria-label="option.name"
           :title="option.name"
           class="size-7 rounded-full ring-offset-2 ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
           :class="color === option.value && 'ring-2 ring-primary'"
           :style="{ backgroundColor: option.value }"
-          @click="color = option.value"
         />
-      </div>
+      </RadioGroup>
       <Button variant="ghost" size="sm" :disabled="empty" @click="clear">
         <Eraser aria-hidden="true" />
         清空
