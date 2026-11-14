@@ -147,6 +147,7 @@ describe('pdfViewer', () => {
     const scroller = wrapper.get('[aria-label="PDF 预览"]').element as HTMLElement
     scroller.scrollTo = vi.fn()
     expect(currentThumbnail(wrapper)).toBe('1')
+    expect((wrapper.get('input[aria-label="跳转到页码"]').element as HTMLInputElement).value).toBe('1')
     expect(wrapper.get('[aria-label="上一页"]').attributes('disabled')).toBeDefined()
 
     await wrapper.get('input[aria-label="跳转到页码"]').setValue('3')
@@ -163,6 +164,25 @@ describe('pdfViewer', () => {
     // Out-of-range input is reset to the current page
     await wrapper.get('input[aria-label="跳转到页码"]').setValue('9')
     expect((wrapper.get('input[aria-label="跳转到页码"]').element as HTMLInputElement).value).toBe('1')
+  })
+
+  it('keeps the page field synchronized while scrolling', async () => {
+    const wrapper = mount(PdfViewer, { props: { pdf: fakePdf().pdf, pages } })
+    const scroller = wrapper.get('[aria-label="PDF 预览"]').element as HTMLElement
+    const pageElements = wrapper.findAll('section').map(section => section.element as HTMLElement)
+
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 500 })
+    pageElements.forEach((element, index) => {
+      Object.defineProperty(element, 'offsetTop', { configurable: true, value: index * 900 })
+    })
+    Object.defineProperty(scroller, 'scrollTop', { configurable: true, writable: true, value: 900 })
+
+    scroller.dispatchEvent(new Event('scroll'))
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    await wrapper.vm.$nextTick()
+
+    expect(currentThumbnail(wrapper)).toBe('2')
+    expect((wrapper.get('input[aria-label="跳转到页码"]').element as HTMLInputElement).value).toBe('2')
   })
 
   it('hides and shows the thumbnail panel', async () => {

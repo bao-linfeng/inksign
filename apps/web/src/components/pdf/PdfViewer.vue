@@ -30,6 +30,7 @@ const column = useTemplateRef('column')
 
 const zoom = ref(1)
 const currentPage = ref(0)
+const pageInput = ref('1')
 /** Pages within one screen of the visible area; only these hold a rendered canvas */
 const activePages = shallowRef(new Set<number>())
 
@@ -62,6 +63,7 @@ function updateCurrentPage() {
     index = i
   }
   currentPage.value = index
+  pageInput.value = String(index + 1)
 }
 
 let scrollFrame = 0
@@ -80,6 +82,7 @@ function goToPage(index: number) {
     return
   scroller.value.scrollTo({ top: target.offsetTop - PAGE_TOP_CLEARANCE })
   currentPage.value = index
+  pageInput.value = String(index + 1)
 }
 
 function selectThumbnail(index: number) {
@@ -93,8 +96,14 @@ function onPageInput(event: Event) {
   const page = Number.parseInt(input.value, 10)
   if (page >= 1 && page <= props.pages.length)
     goToPage(page - 1)
-  else
-    input.value = String(currentPage.value + 1)
+  else {
+    pageInput.value = String(currentPage.value + 1)
+    input.value = pageInput.value
+    nextTick(() => {
+      pageInput.value = String(currentPage.value + 1)
+      input.value = pageInput.value
+    })
+  }
 }
 
 /** Changes the zoom and keeps the same spot of the current page in view. */
@@ -154,12 +163,12 @@ onBeforeUnmount(() => {
     <div class="relative min-w-0 flex-1">
       <div
         ref="scroller"
-        class="absolute inset-0 overflow-auto bg-workspace outline-none"
+        class="absolute inset-0 overflow-auto overscroll-contain bg-workspace outline-none"
         tabindex="0"
         aria-label="PDF 预览"
         @scroll="onScroll"
       >
-        <div ref="column" class="flex w-max min-w-full flex-col items-center gap-6 px-6 pt-16 pb-24">
+        <div ref="column" class="flex w-max min-w-full flex-col items-center gap-6 px-6 pt-16 pb-24 max-md:gap-4 max-md:px-3 max-md:pt-14 max-md:pb-20">
           <PdfPage
             v-for="(page, index) in pages"
             :key="index"
@@ -180,7 +189,7 @@ onBeforeUnmount(() => {
         <div
           role="toolbar"
           aria-label="页面与缩放"
-          class="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-0.5 rounded-xl border bg-background/90 p-1 text-sm shadow-lg shadow-black/10 backdrop-blur-md"
+          class="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-0.5 rounded-xl border bg-background/90 p-1 text-sm shadow-lg shadow-black/10 backdrop-blur-md max-md:rounded-2xl max-md:p-0.5"
         >
           <Button
             variant="ghost"
@@ -202,8 +211,7 @@ onBeforeUnmount(() => {
               <ChevronUp />
             </Button>
             <Input
-              :key="currentPage"
-              :value="currentPage + 1"
+              v-model="pageInput"
               type="number"
               inputmode="numeric"
               min="1"
