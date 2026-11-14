@@ -1,22 +1,30 @@
 import type { SignatureImage } from '@/services/signature-image'
+import type { LibrarySettings } from '@/services/signature-vault'
 import type { StoredSignature } from '@/types/signature'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
 import {
-  changeSignaturePin,
+  changeLibraryPin,
   clearRememberedSignatures,
   clearSignatures,
+  DEFAULT_LIBRARY_SETTINGS,
   deleteSignature,
   forgetRememberedSignature,
   isPersisted,
   listSignatures,
+  readLibrarySettings,
+  readLibrarySignature,
+  readRememberedLibraryKey,
   readRememberedSignature,
   readSignature,
+  rememberLibraryKey,
   rememberSignatureKey,
   renameSignature,
   requestPersistence,
   saveSignature,
+  unlockLibraryKey,
+  updateLibraryPreferences,
   VAULT_MAX_ENTRIES,
   VaultError,
 } from '@/services/signature-vault'
@@ -38,12 +46,17 @@ export const useLibraryStore = defineStore('library', () => {
   const previews = shallowRef(new Map<string, string>())
   /** Whether the browser granted persistent storage; `null` when unknown */
   const persisted = ref<boolean | null>(null)
+  const settings = shallowRef<LibrarySettings>({ ...DEFAULT_LIBRARY_SETTINGS })
+  const libraryKey = shallowRef<CryptoKey | null>(null)
   /** PIN protection needs Web Crypto, which browsers offer on secure origins only */
   const canEncrypt = typeof globalThis.crypto?.subtle?.deriveKey === 'function'
 
   const available = computed(() => status.value !== 'unavailable')
   const full = computed(() => entries.value.length >= VAULT_MAX_ENTRIES)
   const hasUnlocked = computed(() => unlocked.value.size > 0)
+  const pinEnabled = computed(() => settings.value.pin !== null)
+  const locked = computed(() => pinEnabled.value && libraryKey.value === null)
+  const legacyEntries = computed(() => entries.value.filter(entry => entry.encrypted && entry.protection !== 'library'))
 
   let loading: Promise<void> | undefined
 
@@ -53,7 +66,19 @@ export const useLibraryStore = defineStore('library', () => {
       status.value = 'loading'
       try {
         entries.value = await listSignatures()
+        settings.value = await readLibrarySettings()
         status.value = 'ready'
+        if (settings.value.rememberUnlock && settings.value.pin) {
+          const key = await readRememberedLibraryKey()
+          if (key) {
+            try {
+              await restoreLibrary(key)
+            }
+            catch {
+              await clearRememberedSignatures()
+            }
+          }
+        }
         for (const entry of entries.value) {
           const bytes = await readRememberedSignature(entry)
           if (bytes)
@@ -113,11 +138,13 @@ export const useLibraryStore = defineStore('library', () => {
    * Saves a signature (PRD FR-08). The first save asks the browser for persistent storage. A
    * PIN-protected signature counts as unlocked for the rest of the session.
    */
-  async function save(name: string, image: SignatureImage, pin: string | null = null): Promise<StoredSignature> {
+  async function save(name: string, image: SignatureImage): Promise<StoredSignature> {
     await load()
     if (status.value === 'unavailable')
       throw new VaultError('unavailable')
-    const entry = await saveSignature({ name, image, pin })
+    if (locked.value)
+      throw new VaultError('locked')
+    const entry = await saveSignature({ name, image, key: libraryKey.value ?? undefined, settingsRevision: settings.value.revision })
     if (entry.encrypted)
       remember(entry.id, image.pngBytes)
     setEntries([...entries.value, entry])
@@ -127,14 +154,18 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   /** Unlocks a protected entry for this session; throws `WrongPinError` for a wrong PIN. */
-  async function unlock(id: string, pin: string, rememberOnDevice = false): Promise<Uint8Array> {
+  async function unlock(id: string, pin: string): Promise<Uint8Array> {
     const entry = entries.value.find(e => e.id === id)
     if (!entry)
       throw new VaultError('missing')
+    if (entry.protection === 'library') {
+      await unlockVault(pin)
+      return bytesOf(id)!
+    }
     const bytes = await readSignature(entry, pin)
     if (entry.encrypted) {
       remember(id, bytes)
-      if (rememberOnDevice)
+      if (settings.value.rememberUnlock)
         await rememberSignatureKey(entry, pin)
       refreshPreviews()
     }
@@ -142,10 +173,11 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   /** Forgets every unlocked signature: they need their PIN again (PRD FR-08). */
-  function lock() {
+  async function lock() {
+    await clearRememberedSignatures()
     const ids = entries.value.filter(entry => entry.encrypted).map(entry => entry.id)
     forgetSessionSignatures(ids)
-    void Promise.all(ids.map(id => forgetRememberedSignature(id)))
+    libraryKey.value = null
     unlocked.value = new Map()
     refreshPreviews()
   }
@@ -161,17 +193,43 @@ export const useLibraryStore = defineStore('library', () => {
     replaceEntry(await renameSignature(id, name))
   }
 
-  /** Sets, changes or (`newPin: null`) removes a PIN; a protected entry needs its current PIN. */
-  async function changePin(id: string, currentPin: string | undefined, newPin: string | null) {
-    const { entry, pngBytes } = await changeSignaturePin(id, currentPin, newPin)
-    await forgetRememberedSignature(id).catch(() => {})
-    if (entry.encrypted)
-      remember(id, pngBytes)
-    else
-      unlocked.value = new Map([...unlocked.value].filter(([key]) => key !== id))
-    replaceEntry(entry)
-    if (!entry.encrypted)
-      void forgetRememberedSignature(id)
+  async function restoreLibrary(key: CryptoKey) {
+    const decrypted = await Promise.all(entries.value.filter(entry => entry.protection === 'library').map(async entry => [entry.id, await readLibrarySignature(entry, key)] as const))
+    unlocked.value = new Map([...unlocked.value, ...decrypted])
+    libraryKey.value = key
+    refreshPreviews()
+  }
+
+  async function unlockVault(pin: string) {
+    await load()
+    const key = await unlockLibraryKey(settings.value, pin)
+    await restoreLibrary(key)
+    if (settings.value.rememberUnlock)
+      await rememberLibraryKey(key, settings.value.revision)
+  }
+
+  async function preferences(patch: Partial<Pick<LibrarySettings, 'autoSave' | 'rememberUnlock'>>) {
+    await load()
+    settings.value = await updateLibraryPreferences(patch, settings.value.revision)
+    if (patch.rememberUnlock && libraryKey.value)
+      await rememberLibraryKey(libraryKey.value, settings.value.revision)
+  }
+
+  async function setPin(currentPin: string, newPin: string | null) {
+    await load()
+    const key = pinEnabled.value ? await unlockLibraryKey(settings.value, currentPin) : null
+    const images = new Map<string, Uint8Array>()
+    for (const entry of entries.value) {
+      const bytes = entry.protection === 'library' && key ? await readLibrarySignature(entry, key) : bytesOf(entry.id)
+      if (!bytes)
+        throw new VaultError('legacy-locked')
+      images.set(entry.id, bytes)
+    }
+    const result = await changeLibraryPin(settings.value, entries.value, images, newPin)
+    settings.value = result.settings
+    libraryKey.value = result.key
+    unlocked.value = result.key ? images : new Map()
+    setEntries(result.entries)
   }
 
   async function remove(id: string) {
@@ -183,7 +241,8 @@ export const useLibraryStore = defineStore('library', () => {
 
   async function clear() {
     await clearSignatures()
-    await clearRememberedSignatures().catch(() => {})
+    settings.value = await readLibrarySettings()
+    libraryKey.value = null
     forgetSessionSignatures(entries.value.map(entry => entry.id))
     setEntries([])
   }
@@ -193,6 +252,10 @@ export const useLibraryStore = defineStore('library', () => {
     entries,
     previews,
     persisted,
+    settings,
+    pinEnabled,
+    locked,
+    legacyEntries,
     canEncrypt,
     available,
     full,
@@ -204,7 +267,9 @@ export const useLibraryStore = defineStore('library', () => {
     unlock,
     lock,
     rename,
-    changePin,
+    unlockVault,
+    preferences,
+    setPin,
     remove,
     clear,
   }

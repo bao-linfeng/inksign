@@ -60,6 +60,14 @@ CI 为 `.github/workflows/ci.yml`：推送 main 和 PR 时运行 lint、类型�
 
 产物为纯静态文件，可部署到任意静态托管（Nginx、Caddy、Cloudflare Pages 等）。自托管时：
 
+Windows 下在项目根目录执行以下命令，即可完成生产构建（含类型检查）并生成 ZIP 部署包：
+
+```sh
+pnpm pack:web
+```
+
+产物为 `build/inksign-web.zip`，每次成功打包后替换旧包。解压后直接包含 `index.html`、`assets/` 和 `pdfjs/` 等静态文件，将其上传到网站根目录即可。
+
 - `deploy/nginx/spa.conf`：SPA 回退、哈希资源长期缓存、`/pdfjs/` 资源缓存。
 - `deploy/nginx/security-headers.conf`：内容安全策略。除站点自身外不允许任何来源，保证 PDF 与签名数据不会被发往第三方。
 - `deploy/Caddyfile`：自动 HTTPS 网关，域名取自环境变量 `SITE_DOMAIN`。

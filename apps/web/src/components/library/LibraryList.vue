@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { PinAction } from './PinDialog.vue'
 import type { StoredSignature } from '@/types/signature'
 import { CircleAlert, Download, LockKeyhole, Plus, UnlockKeyhole } from '@lucide/vue'
 import { Alert, AlertDescription } from '@repo/ui/components/alert'
@@ -23,9 +22,8 @@ const error = ref<string | null>(null)
 const busy = ref(false)
 const target = ref<StoredSignature | null>(null)
 const pinOpen = ref(false)
-const pinAction = ref<PinAction>('unlock')
 const afterUnlock = ref<'select' | 'download' | null>(null)
-const action = ref<'rename' | 'delete' | 'clear' | 'lock' | null>(null)
+const action = ref<'rename' | 'delete' | null>(null)
 const name = ref('')
 
 watch(pinOpen, (open) => {
@@ -35,9 +33,8 @@ watch(pinOpen, (open) => {
   }
 })
 
-function askPin(entry: StoredSignature, next: PinAction) {
+function askPin(entry: StoredSignature) {
   target.value = entry
-  pinAction.value = next
   afterUnlock.value = null
   pinOpen.value = true
 }
@@ -45,7 +42,7 @@ function askPin(entry: StoredSignature, next: PinAction) {
 function useEntry(entry: StoredSignature, next: 'select' | 'download') {
   error.value = null
   if (library.isLocked(entry)) {
-    askPin(entry, 'unlock')
+    askPin(entry)
     afterUnlock.value = next
     return
   }
@@ -86,10 +83,6 @@ async function confirm() {
       await library.rename(target.value.id, name.value)
     else if (action.value === 'delete' && target.value)
       await library.remove(target.value.id)
-    else if (action.value === 'clear')
-      await library.clear()
-    else if (action.value === 'lock')
-      library.lock()
     action.value = null
     target.value = null
   }
@@ -104,13 +97,6 @@ async function confirm() {
 
 <template>
   <div class="flex flex-col gap-3">
-    <div class="rounded-lg bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
-      <p>签名保存在本浏览器，清理浏览器数据会丢失，建议下载 PNG 备份。请勿在公共或共用电脑上保存。</p>
-      <p v-if="library.status === 'ready'" class="mt-1 font-medium">
-        {{ library.persisted ? '已获持久化存储授权；主动清除站点数据仍会删除签名。' : '浏览器可能自动清理已保存的签名，建议下载备份。' }}
-      </p>
-    </div>
-
     <p v-if="library.status === 'loading' || library.status === 'idle'" class="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground" role="status">
       <Spinner /> 正在读取本设备签名…
     </p>
@@ -123,7 +109,7 @@ async function confirm() {
         还没有保存的签名
       </p>
       <p class="mt-1 text-xs text-muted-foreground">
-        手写或上传后，勾选“保存到本设备”即可在这里找到。
+        新建并保存一个签名，下次可以直接使用。
       </p>
       <Button variant="outline" size="sm" class="mt-4" @click="emit('create')">
         <Plus aria-hidden="true" /> 新建签名
@@ -132,14 +118,6 @@ async function confirm() {
     <template v-else>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="text-xs text-muted-foreground">{{ library.entries.length }} / 20 个签名</span>
-        <div class="flex gap-1">
-          <Button v-if="library.hasUnlocked" variant="outline" size="sm" @click="ask('lock')">
-            <LockKeyhole aria-hidden="true" /> 锁定
-          </Button>
-          <Button variant="ghost" size="sm" class="text-destructive" @click="ask('clear')">
-            清空全部
-          </Button>
-        </div>
       </div>
       <ul class="grid gap-3 sm:grid-cols-2">
         <li v-for="entry in library.entries" :key="entry.id" class="min-w-0 overflow-hidden rounded-lg border">
@@ -175,12 +153,6 @@ async function confirm() {
               <Button variant="link" size="sm" class="h-auto p-0 text-xs" @click="ask('rename', entry)">
                 重命名
               </Button>
-              <Button v-if="library.canEncrypt" variant="link" size="sm" class="h-auto p-0 text-xs" @click="askPin(entry, entry.encrypted ? 'change' : 'set')">
-                {{ entry.encrypted ? '修改 PIN' : '设置 PIN' }}
-              </Button>
-              <Button v-if="entry.encrypted && library.canEncrypt" variant="link" size="sm" class="h-auto p-0 text-xs" @click="askPin(entry, 'remove')">
-                移除 PIN
-              </Button>
               <Button variant="link" size="sm" class="h-auto p-0 text-xs text-destructive" @click="ask('delete', entry)">
                 删除
               </Button>
@@ -190,20 +162,17 @@ async function confirm() {
       </ul>
     </template>
 
-    <PinDialog v-model:open="pinOpen" :entry="target" :action="pinAction" @done="onUnlocked" />
+    <PinDialog v-model:open="pinOpen" :entry="target" @done="onUnlocked" />
     <Dialog :open="action !== null" @update:open="!busy && !$event && (action = null)">
       <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-sm" :show-close-button="!busy">
         <DialogHeader>
-          <DialogTitle>{{ action === 'rename' ? '重命名签名' : action === 'delete' ? '删除此签名？' : action === 'clear' ? '清空全部签名？' : '锁定受保护的签名？' }}</DialogTitle>
+          <DialogTitle>{{ action === 'rename' ? '重命名签名' : '删除此签名？' }}</DialogTitle>
           <DialogDescription>
             <template v-if="action === 'rename'">
               为“{{ target?.name }}”设置一个便于识别的名称。
             </template>
-            <template v-else-if="action === 'lock'">
-              锁定会清除已解锁的签名，并移除它们在当前 PDF 中的全部放置。请先导出需要保留的内容，再锁定。
-            </template>
             <template v-else>
-              将{{ action === 'clear' ? '删除本浏览器中保存的全部签名' : `删除“${target?.name}”` }}，并移除它们在当前 PDF 中的全部放置。此操作无法撤销，请先导出 PDF 或下载 PNG 备份。
+              将删除“{{ target?.name }}”，并移除它在当前 PDF 中的全部放置。此操作无法撤销，请先导出 PDF 或下载 PNG 备份。
             </template>
           </DialogDescription>
         </DialogHeader>
@@ -221,7 +190,7 @@ async function confirm() {
             </Button>
             <Button type="submit" :variant="action === 'rename' ? 'default' : 'destructive'" :disabled="busy || (action === 'rename' && !name.trim())">
               <Spinner v-if="busy" aria-label="正在处理" />
-              {{ action === 'rename' ? '保存名称' : action === 'lock' ? '锁定并移除放置' : '确认删除' }}
+              {{ action === 'rename' ? '保存名称' : '确认删除' }}
             </Button>
           </DialogFooter>
         </form>

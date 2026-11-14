@@ -1,13 +1,14 @@
 import type { DBSchema, IDBPDatabase } from 'idb'
+import type { EncryptedImage } from './signature-crypto'
 import type { SignatureImage } from './signature-image'
 import type { StoredSignature } from '@/types/signature'
 import { openDB } from 'idb'
 
-import { decryptImage, decryptImageWithKey, deriveDecryptionKey, encryptImage, WrongPinError } from './signature-crypto'
+import { decryptImage, decryptImageWithKey, deriveDecryptionKey, encryptImage, encryptImageWithKey, importLibraryKey, WrongPinError } from './signature-crypto'
 
 /**
  * The signature library (PRD FR-08): signatures the user chose to save on this device, in
- * IndexedDB. Nothing else is stored here; PDFs and file names never are (FR-07).
+ * IndexedDB, alongside explicit local preferences. PDFs and file names never are (FR-07).
  */
 
 /** PRD FR-08 limits */
@@ -16,16 +17,28 @@ export const VAULT_MAX_PNG_BYTES = 2 * 1024 * 1024
 export const SIGNATURE_NAME_MAX_LENGTH = 20
 
 const DB_NAME = 'inksign'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE = 'signatures'
 const KEY_STORE = 'remembered-keys'
+const SETTINGS_STORE = 'settings'
+const LIBRARY_KEY_ID = 'library'
+
+export interface LibrarySettings {
+  autoSave: boolean
+  rememberUnlock: boolean
+  pin: EncryptedImage | null
+  revision: number
+}
+
+export const DEFAULT_LIBRARY_SETTINGS: LibrarySettings = { autoSave: false, rememberUnlock: false, pin: null, revision: 0 }
 
 interface VaultSchema extends DBSchema {
   [STORE]: { key: string, value: StoredSignature }
   [KEY_STORE]: { key: string, value: CryptoKey }
+  [SETTINGS_STORE]: { key: string, value: LibrarySettings }
 }
 
-export type VaultErrorCode = 'unavailable' | 'full' | 'too-large' | 'quota' | 'missing' | 'failed'
+export type VaultErrorCode = 'unavailable' | 'full' | 'too-large' | 'quota' | 'missing' | 'failed' | 'locked' | 'legacy-locked' | 'changed'
 
 export class VaultError extends Error {
   constructor(readonly code: VaultErrorCode, options?: ErrorOptions) {
@@ -42,9 +55,12 @@ export const vaultErrorMessages: Record<VaultErrorCode, string> = {
   'quota': '签名保存失败，浏览器存储空间不足。可下载签名 PNG 备份。',
   'missing': '该签名已不存在，可能已在其他标签页中删除。',
   'failed': '签名库操作失败，请重试。',
+  'locked': '请先输入 PIN 解锁签名库。',
+  'legacy-locked': '请先在设置中解锁旧版受保护签名，再统一设置 PIN。',
+  'changed': '签名库已在其他页面更新，请刷新后重试。',
 }
 
-export const WRONG_PIN_MESSAGE = 'PIN 不正确，请重试。忘记 PIN 只能删除该签名后重新创建。'
+export const WRONG_PIN_MESSAGE = 'PIN 不正确，请重试。忘记 PIN 无法找回，可在设置中清空签名库后重新创建。'
 
 /** What to tell the user about a failed library operation. */
 export function vaultErrorMessage(error: unknown) {
@@ -65,6 +81,8 @@ function database() {
           db.createObjectStore(STORE, { keyPath: 'id' })
         if (!db.objectStoreNames.contains(KEY_STORE))
           db.createObjectStore(KEY_STORE)
+        if (!db.objectStoreNames.contains(SETTINGS_STORE))
+          db.createObjectStore(SETTINGS_STORE)
       },
       // Another tab opens a newer version: step aside and reconnect on the next call
       blocking() {
@@ -125,7 +143,7 @@ function isStoredSignature(value: unknown): value is StoredSignature {
   if (!(Number(entry.naturalWidth) > 0 && Number(entry.naturalHeight) > 0))
     return false
   return entry.encrypted
-    ? entry.cipher instanceof ArrayBuffer && entry.iv instanceof Uint8Array && entry.salt instanceof Uint8Array && typeof entry.kdfIterations === 'number'
+    ? entry.cipher instanceof ArrayBuffer && entry.iv instanceof Uint8Array && (entry.protection === 'library' || (entry.salt instanceof Uint8Array && typeof entry.kdfIterations === 'number'))
     : entry.pngBytes instanceof Uint8Array
 }
 
@@ -159,10 +177,12 @@ export interface NewSignature {
   image: SignatureImage
   /** Encrypts the signature with this PIN */
   pin?: string | null
+  key?: CryptoKey
+  settingsRevision?: number
 }
 
 /** Saves a signature; refuses more than 20 entries or more than 2 MB of PNG (PRD FR-08). */
-export async function saveSignature({ name, image, pin = null }: NewSignature): Promise<StoredSignature> {
+export async function saveSignature({ name, image, pin = null, key, settingsRevision }: NewSignature): Promise<StoredSignature> {
   if (image.pngBytes.length > VAULT_MAX_PNG_BYTES)
     throw new VaultError('too-large')
   // Before the transaction: it commits as soon as it waits for anything but IndexedDB
@@ -172,16 +192,25 @@ export async function saveSignature({ name, image, pin = null }: NewSignature): 
     createdAt: Date.now(),
     naturalWidth: image.width,
     naturalHeight: image.height,
-    ...await protect(image.pngBytes, pin),
+    ...key ? { encrypted: true, protection: 'library' as const, ...await encryptImageWithKey(image.pngBytes, key) } : await protect(image.pngBytes, pin),
   }
   return run(async (db) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    const count = await tx.store.count()
+    const tx = db.transaction([STORE, SETTINGS_STORE], 'readwrite')
+    const settings = await tx.objectStore(SETTINGS_STORE).get('library') ?? DEFAULT_LIBRARY_SETTINGS
+    if (settingsRevision !== undefined && settings.revision !== settingsRevision) {
+      await tx.done
+      throw new VaultError('changed')
+    }
+    if (settings.pin && !key) {
+      await tx.done
+      throw new VaultError('locked')
+    }
+    const count = await tx.objectStore(STORE).count()
     if (count >= VAULT_MAX_ENTRIES) {
       await tx.done
       throw new VaultError('full')
     }
-    await Promise.all([tx.store.add(entry), tx.done])
+    await Promise.all([tx.objectStore(STORE).add(entry), tx.done])
     return entry
   })
 }
@@ -218,6 +247,12 @@ export async function renameSignature(id: string, name: string): Promise<StoredS
 export async function readSignature(entry: StoredSignature, pin?: string): Promise<Uint8Array> {
   if (!entry.encrypted)
     return entry.pngBytes!
+  if (entry.protection === 'library') {
+    const settings = await readLibrarySettings()
+    if (!settings.pin)
+      throw new VaultError('changed')
+    return readLibrarySignature(entry, await unlockLibraryKey(settings, pin ?? ''))
+  }
   return decryptImage({ cipher: entry.cipher!, iv: entry.iv!, salt: entry.salt!, kdfIterations: entry.kdfIterations! }, pin ?? '')
 }
 
@@ -225,6 +260,8 @@ export async function readSignature(entry: StoredSignature, pin?: string): Promi
 export async function rememberSignatureKey(entry: StoredSignature, pin: string) {
   if (!entry.encrypted)
     return
+  if (entry.protection === 'library')
+    throw new VaultError('failed')
   const key = await deriveDecryptionKey(pin, entry.salt!, entry.kdfIterations!)
   await run(db => db.put(KEY_STORE, key, entry.id))
 }
@@ -233,11 +270,13 @@ export async function rememberSignatureKey(entry: StoredSignature, pin: string) 
 export async function readRememberedSignature(entry: StoredSignature): Promise<Uint8Array | null> {
   if (!entry.encrypted)
     return null
+  if (entry.protection === 'library')
+    return null
   const key = await run(db => db.get(KEY_STORE, entry.id))
   if (!key)
     return null
   try {
-    return await decryptImageWithKey({ cipher: entry.cipher!, iv: entry.iv!, salt: entry.salt!, kdfIterations: entry.kdfIterations! }, key)
+    return await decryptImageWithKey({ cipher: entry.cipher!, iv: entry.iv! }, key)
   }
   catch {
     await forgetRememberedSignature(entry.id)
@@ -260,6 +299,8 @@ export async function clearRememberedSignatures() {
  */
 export async function changeSignaturePin(id: string, currentPin: string | undefined, newPin: string | null) {
   const entry = await find(id)
+  if (entry.protection === 'library')
+    throw new VaultError('failed')
   const pngBytes = await readSignature(entry, currentPin)
   const { id: entryId, name, createdAt, naturalWidth, naturalHeight } = entry
   const updated = await replace({ id: entryId, name, createdAt, naturalWidth, naturalHeight, ...await protect(pngBytes, newPin) })
@@ -272,7 +313,133 @@ export async function deleteSignature(id: string) {
 
 /** Deletes every saved signature (PRD FR-08: nothing may be left behind). */
 export async function clearSignatures() {
-  await run(db => db.clear(STORE))
+  await run(async (db) => {
+    const tx = db.transaction([STORE, SETTINGS_STORE, KEY_STORE], 'readwrite')
+    const settings = await tx.objectStore(SETTINGS_STORE).get('library') ?? DEFAULT_LIBRARY_SETTINGS
+    const writes: Promise<unknown>[] = [tx.done]
+    try {
+      writes.push(tx.objectStore(STORE).clear())
+      writes.push(tx.objectStore(KEY_STORE).clear())
+      writes.push(tx.objectStore(SETTINGS_STORE).put({ ...settings, pin: null, revision: settings.revision + 1 }, 'library'))
+      await Promise.all(writes)
+    }
+    catch (error) {
+      try {
+        tx.abort()
+      }
+      catch {}
+      await Promise.allSettled(writes)
+      throw error
+    }
+  })
+}
+
+export async function readLibrarySettings(): Promise<LibrarySettings> {
+  return await run(db => db.get(SETTINGS_STORE, 'library')) ?? { ...DEFAULT_LIBRARY_SETTINGS }
+}
+
+export async function updateLibraryPreferences(patch: Partial<Pick<LibrarySettings, 'autoSave' | 'rememberUnlock'>>, expectedRevision?: number) {
+  return run(async (db) => {
+    const tx = db.transaction([SETTINGS_STORE, KEY_STORE], 'readwrite')
+    const current = await tx.objectStore(SETTINGS_STORE).get('library') ?? DEFAULT_LIBRARY_SETTINGS
+    if (expectedRevision !== undefined && current.revision !== expectedRevision) {
+      await tx.done
+      throw new VaultError('changed')
+    }
+    const next = { ...current, ...patch, revision: current.revision + 1 }
+    const writes: Promise<unknown>[] = [tx.done]
+    try {
+      writes.push(tx.objectStore(SETTINGS_STORE).put(next, 'library'))
+      if (patch.rememberUnlock === false)
+        writes.push(tx.objectStore(KEY_STORE).clear())
+      await Promise.all(writes)
+    }
+    catch (error) {
+      try {
+        tx.abort()
+      }
+      catch {}
+      await Promise.allSettled(writes)
+      throw error
+    }
+    return next
+  })
+}
+
+export async function unlockLibraryKey(settings: LibrarySettings, pin: string) {
+  if (!settings.pin)
+    throw new VaultError('changed')
+  return importLibraryKey(await decryptImage(settings.pin, pin))
+}
+
+export async function readLibrarySignature(entry: StoredSignature, key: CryptoKey) {
+  return decryptImageWithKey({ cipher: entry.cipher!, iv: entry.iv! }, key)
+}
+
+export async function rememberLibraryKey(key: CryptoKey, expectedRevision?: number) {
+  await run(async (db) => {
+    const tx = db.transaction([KEY_STORE, SETTINGS_STORE], 'readwrite')
+    const settings = await tx.objectStore(SETTINGS_STORE).get('library') ?? DEFAULT_LIBRARY_SETTINGS
+    if (!settings.pin || !settings.rememberUnlock || (expectedRevision !== undefined && settings.revision !== expectedRevision)) {
+      await tx.done
+      throw new VaultError('changed')
+    }
+    await Promise.all([tx.objectStore(KEY_STORE).put(key, LIBRARY_KEY_ID), tx.done])
+  })
+}
+
+export async function readRememberedLibraryKey() {
+  return run(db => db.get(KEY_STORE, LIBRARY_KEY_ID))
+}
+
+function sameBytes(a: ArrayBuffer | Uint8Array | undefined, b: ArrayBuffer | Uint8Array | undefined) {
+  if (!a || !b)
+    return a === b
+  const first = a instanceof ArrayBuffer ? new Uint8Array(a) : a
+  const second = b instanceof ArrayBuffer ? new Uint8Array(b) : b
+  return first.length === second.length && first.every((byte, i) => byte === second[i])
+}
+
+export async function changeLibraryPin(settings: LibrarySettings, entries: StoredSignature[], images: Map<string, Uint8Array>, newPin: string | null) {
+  const secret = newPin === null ? null : crypto.getRandomValues(new Uint8Array(32))
+  const key = secret ? await importLibraryKey(secret) : null
+  const nextSettings: LibrarySettings = { ...settings, pin: secret ? await encryptImage(secret, newPin!) : null, revision: settings.revision + 1 }
+  const updated = await Promise.all(entries.map(async (entry): Promise<StoredSignature> => {
+    const bytes = images.get(entry.id)
+    if (!bytes)
+      throw new VaultError('legacy-locked')
+    const { id, name, createdAt, naturalWidth, naturalHeight } = entry
+    return { id, name, createdAt, naturalWidth, naturalHeight, ...key ? { encrypted: true, protection: 'library' as const, ...await encryptImageWithKey(bytes, key) } : { encrypted: false, pngBytes: bytes.slice() } }
+  }))
+  await run(async (db) => {
+    const tx = db.transaction([STORE, SETTINGS_STORE, KEY_STORE], 'readwrite')
+    const currentSettings = await tx.objectStore(SETTINGS_STORE).get('library') ?? DEFAULT_LIBRARY_SETTINGS
+    const current = await tx.objectStore(STORE).getAll()
+    const unchanged = current.length === entries.length && current.every(entry => entries.some(previous => previous.id === entry.id && previous.name === entry.name && previous.encrypted === entry.encrypted && previous.protection === entry.protection && sameBytes(previous.cipher, entry.cipher) && sameBytes(previous.pngBytes, entry.pngBytes) && sameBytes(previous.iv, entry.iv)))
+    if (currentSettings.revision !== settings.revision || !unchanged) {
+      await tx.done
+      throw new VaultError('changed')
+    }
+    const writes: Promise<unknown>[] = [tx.done]
+    try {
+      for (const entry of updated)
+        writes.push(tx.objectStore(STORE).put(entry))
+      writes.push(tx.objectStore(SETTINGS_STORE).put(nextSettings, 'library'))
+      writes.push(tx.objectStore(KEY_STORE).clear())
+      if (key && settings.rememberUnlock)
+        writes.push(tx.objectStore(KEY_STORE).put(key, LIBRARY_KEY_ID))
+      await Promise.all(writes)
+    }
+    catch (error) {
+      try {
+        tx.abort()
+      }
+      catch {}
+      await Promise.allSettled(writes)
+      throw error
+    }
+  })
+  return { settings: nextSettings, entries: updated, key }
 }
 
 /**

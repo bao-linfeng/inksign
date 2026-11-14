@@ -59,7 +59,8 @@ describe('editorView', () => {
   it('gives header actions minimum touch targets on narrow and coarse-pointer screens', () => {
     const wrapper = mountEditor({ doc: doc() })
     const actions = wrapper.findAll('header button')
-    expect(actions).toHaveLength(2)
+    expect(actions).toHaveLength(3)
+    expect(wrapper.find('header [aria-label="设置"]').exists()).toBe(true)
     for (const action of actions) {
       expect(action.classes()).toEqual(expect.arrayContaining([
         'max-md:min-h-11',

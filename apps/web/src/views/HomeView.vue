@@ -7,6 +7,7 @@ import { defineAsyncComponent, ref } from 'vue'
 
 import AppLogo from '@/components/AppLogo.vue'
 import PdfFileButton from '@/components/PdfFileButton.vue'
+import SettingsButton from '@/components/settings/SettingsButton.vue'
 import { useLibraryStore } from '@/stores/library'
 
 defineProps<{
@@ -28,9 +29,12 @@ void library.load()
   <div class="flex min-h-svh flex-col">
     <header class="flex h-14 items-center justify-between px-4 sm:px-6">
       <AppLogo />
-      <Button variant="ghost" size="sm" @click="libraryOpen = true">
-        <PenLine aria-hidden="true" /> 我的签名（{{ library.entries.length }}）
-      </Button>
+      <div class="flex items-center gap-1">
+        <Button variant="ghost" size="sm" @click="libraryOpen = true">
+          <PenLine aria-hidden="true" /> 我的签名（{{ library.entries.length }}）
+        </Button>
+        <SettingsButton />
+      </div>
     </header>
 
     <main class="flex flex-1 flex-col items-center justify-center px-5 py-10 pb-[max(4rem,env(safe-area-inset-bottom))] text-center sm:px-6">

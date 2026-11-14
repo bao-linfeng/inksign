@@ -20,6 +20,7 @@ import AppLogo from '@/components/AppLogo.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
 import PdfViewer from '@/components/pdf/PdfViewer.vue'
 import PdfFileButton from '@/components/PdfFileButton.vue'
+import SettingsButton from '@/components/settings/SettingsButton.vue'
 import SignatureDialog from '@/components/signature/SignatureDialog.vue'
 import SignatureLayer from '@/components/signature/SignatureLayer.vue'
 import SignaturePanel from '@/components/signature/SignaturePanel.vue'
@@ -143,6 +144,7 @@ async function runExport() {
         <Download aria-hidden="true" />
         <span class="max-sm:sr-only">导出 PDF</span>
       </Button>
+      <SettingsButton />
     </header>
 
     <Alert v-if="error" variant="destructive" class="rounded-none border-x-0 border-t-0 bg-red-50 py-2">

@@ -4,8 +4,9 @@ import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 import { openDB } from 'idb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { WrongPinError } from '../signature-crypto'
+import { deriveDecryptionKey, encryptImage, WrongPinError } from '../signature-crypto'
 import {
+  changeLibraryPin,
   changeSignaturePin,
   clearSignatures,
   closeVault,
@@ -15,12 +16,18 @@ import {
   isVaultAvailable,
   listSignatures,
   normalizeName,
+  readLibrarySettings,
+  readLibrarySignature,
+  readRememberedLibraryKey,
   readRememberedSignature,
   readSignature,
+  rememberLibraryKey,
   rememberSignatureKey,
   renameSignature,
   requestPersistence,
   saveSignature,
+  unlockLibraryKey,
+  updateLibraryPreferences,
   VAULT_MAX_ENTRIES,
   VAULT_MAX_PNG_BYTES,
   VaultError,
@@ -57,6 +64,7 @@ describe('signature vault', () => {
   afterEach(() => {
     closeVault()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('keeps saved signatures across connections (PRD FR-08)', async () => {
@@ -107,6 +115,195 @@ describe('signature vault', () => {
 
     await forgetRememberedSignature(saved.id)
     expect(await readRememberedSignature(reloaded!)).toBeNull()
+  })
+
+  it('upgrades a version 2 database without losing signatures or remembered legacy keys', async () => {
+    const encrypted = await encryptImage(png, 'abc123')
+    const plain: StoredSignature = { id: 'plain-v2', name: '明文', createdAt: 1, naturalWidth: 300, naturalHeight: 100, encrypted: false, pngBytes: png }
+    const protectedEntry: StoredSignature = { id: 'protected-v2', name: '旧加密', createdAt: 2, naturalWidth: 300, naturalHeight: 100, encrypted: true, ...encrypted }
+    const remembered = await deriveDecryptionKey('abc123', encrypted.salt, encrypted.kdfIterations)
+    const legacy = await openDB('inksign', 2, {
+      upgrade(db) {
+        db.createObjectStore('signatures', { keyPath: 'id' })
+        db.createObjectStore('remembered-keys')
+      },
+    })
+    await legacy.put('signatures', plain)
+    await legacy.put('signatures', protectedEntry)
+    await legacy.put('remembered-keys', remembered, protectedEntry.id)
+    legacy.close()
+
+    expect(await listSignatures()).toEqual([plain, protectedEntry])
+    expect(await readLibrarySettings()).toEqual({ autoSave: false, rememberUnlock: false, pin: null, revision: 0 })
+    expect(await readRememberedSignature(protectedEntry)).toEqual(png)
+    expect(await readSignature(protectedEntry, 'abc123')).toEqual(png)
+    const upgraded = await openDB('inksign')
+    expect(upgraded.version).toBe(3)
+    expect(upgraded.objectStoreNames.contains('settings')).toBe(true)
+    upgraded.close()
+  })
+
+  it('uses one non-extractable library key while giving every signature its own IV', async () => {
+    const first = await saveSignature({ name: '甲', image })
+    const second = await saveSignature({ name: '乙', image })
+    const settings = await updateLibraryPreferences({ rememberUnlock: true })
+    const result = await changeLibraryPin(settings, [first, second], new Map([[first.id, png], [second.id, png]]), 'abc123')
+
+    expect(result.key?.extractable).toBe(false)
+    expect(result.entries[0]!.iv).not.toEqual(result.entries[1]!.iv)
+    expect((await readRememberedLibraryKey())?.extractable).toBe(false)
+    const key = await unlockLibraryKey(await readLibrarySettings(), 'abc123')
+    for (const entry of await rawRecords()) {
+      expect(entry).toMatchObject({ encrypted: true, protection: 'library' })
+      expect(entry.pngBytes).toBeUndefined()
+      expect(entry.salt).toBeUndefined()
+      expect(await readLibrarySignature(entry, key)).toEqual(png)
+    }
+    expect(JSON.stringify(await readLibrarySettings())).not.toContain('abc123')
+  })
+
+  it('rejects stale saves and migrations after another connection updates settings', async () => {
+    const entry = await saveSignature({ name: '原签名', image })
+    const stale = await readLibrarySettings()
+    await updateLibraryPreferences({ rememberUnlock: true })
+    const latest = await readLibrarySettings()
+
+    expect(await errorCode(saveSignature({ name: '过期保存', image, settingsRevision: stale.revision }))).toBe('changed')
+    expect(await errorCode(changeLibraryPin(stale, [entry], new Map([[entry.id, png]]), 'abc123'))).toBe('changed')
+    expect(await rawRecords()).toEqual([entry])
+    expect(await readLibrarySettings()).toEqual(latest)
+  })
+
+  it('rejects stale preference writes without overwriting newer settings', async () => {
+    const initial = await readLibrarySettings()
+    const latest = await updateLibraryPreferences({ autoSave: true }, initial.revision)
+
+    expect(await errorCode(updateLibraryPreferences({ autoSave: false, rememberUnlock: true }, initial.revision))).toBe('changed')
+    expect(await readLibrarySettings()).toEqual(latest)
+    expect(await readRememberedLibraryKey()).toBeUndefined()
+  })
+
+  it('rolls back preferences and preserves remembered keys when clearing them throws synchronously', async () => {
+    const entry = await saveSignature({ name: '全名', image })
+    const settings = await updateLibraryPreferences({ autoSave: true, rememberUnlock: true })
+    const initial = await changeLibraryPin(settings, [entry], new Map([[entry.id, png]]), 'abc123')
+    const clear = IDBObjectStore.prototype.clear
+    vi.spyOn(IDBObjectStore.prototype, 'clear').mockImplementation(function (this: IDBObjectStore) {
+      if (this.name === 'remembered-keys')
+        throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      return clear.call(this)
+    })
+
+    expect(await errorCode(updateLibraryPreferences({ autoSave: false, rememberUnlock: false }, initial.settings.revision))).toBe('quota')
+    expect(await readLibrarySettings()).toEqual(initial.settings)
+    expect(await rawRecords()).toEqual(initial.entries)
+    const remembered = await readRememberedLibraryKey()
+    expect(remembered?.extractable).toBe(false)
+    expect(await readLibrarySignature(initial.entries[0]!, remembered!)).toEqual(png)
+  })
+
+  it('refuses remembered keys after remembering is disabled or the library PIN is removed', async () => {
+    const settings = await updateLibraryPreferences({ rememberUnlock: true })
+    const protectedLibrary = await changeLibraryPin(settings, [], new Map(), 'abc123')
+    const disabled = await updateLibraryPreferences({ rememberUnlock: false }, protectedLibrary.settings.revision)
+
+    expect(await errorCode(rememberLibraryKey(protectedLibrary.key!, disabled.revision))).toBe('changed')
+    expect(await readRememberedLibraryKey()).toBeUndefined()
+
+    const enabled = await updateLibraryPreferences({ rememberUnlock: true }, disabled.revision)
+    await rememberLibraryKey(protectedLibrary.key!, enabled.revision)
+    expect(await readRememberedLibraryKey()).toBeDefined()
+    const removed = await changeLibraryPin(enabled, [], new Map(), null)
+    expect(await errorCode(rememberLibraryKey(protectedLibrary.key!, removed.settings.revision))).toBe('changed')
+    expect(await readRememberedLibraryKey()).toBeUndefined()
+  })
+
+  it('prevents a stale unlock from replacing the remembered key after a PIN migration', async () => {
+    const entry = await saveSignature({ name: '全名', image })
+    const settings = await updateLibraryPreferences({ rememberUnlock: true })
+    const first = await changeLibraryPin(settings, [entry], new Map([[entry.id, png]]), 'first1')
+    const second = await changeLibraryPin(first.settings, first.entries, new Map([[entry.id, png]]), 'second2')
+
+    expect(await errorCode(rememberLibraryKey(first.key!, first.settings.revision))).toBe('changed')
+    const remembered = await readRememberedLibraryKey()
+    expect(remembered?.extractable).toBe(false)
+    expect(await readLibrarySignature(second.entries[0]!, remembered!)).toEqual(png)
+  })
+
+  it('rolls back PIN migration if writing its remembered key throws', async () => {
+    const entry = await saveSignature({ name: '全名', image })
+    const settings = await updateLibraryPreferences({ rememberUnlock: true })
+    const initial = await changeLibraryPin(settings, [entry], new Map([[entry.id, png]]), 'first1')
+    const put = IDBObjectStore.prototype.put
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+      if (this.name === 'remembered-keys' && key === 'library')
+        throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      return put.call(this, value, key)
+    })
+
+    expect(await errorCode(changeLibraryPin(initial.settings, initial.entries, new Map([[entry.id, png]]), 'second2'))).toBe('quota')
+    expect(await rawRecords()).toEqual(initial.entries)
+    expect(await readLibrarySettings()).toEqual(initial.settings)
+    expect(await readLibrarySignature(initial.entries[0]!, (await readRememberedLibraryKey())!)).toEqual(png)
+    expect(await readSignature(initial.entries[0]!, 'first1')).toEqual(png)
+  })
+
+  it('rejects a migration if signatures were added after its snapshot', async () => {
+    const first = await saveSignature({ name: '甲', image })
+    const settings = await readLibrarySettings()
+    const second = await saveSignature({ name: '乙', image })
+
+    expect(await errorCode(changeLibraryPin(settings, [first], new Map([[first.id, png]]), 'abc123'))).toBe('changed')
+    expect(await rawRecords()).toEqual(expect.arrayContaining([first, second]))
+    expect(await readLibrarySettings()).toEqual(settings)
+  })
+
+  it('refuses plaintext saves when the library requires an unlocked key', async () => {
+    const settings = await readLibrarySettings()
+    const result = await changeLibraryPin(settings, [], new Map(), 'abc123')
+
+    expect(await errorCode(saveSignature({ name: '未解锁', image, settingsRevision: result.settings.revision }))).toBe('locked')
+    expect(await rawRecords()).toEqual([])
+
+    const saved = await saveSignature({ name: '已解锁', image, key: result.key!, settingsRevision: result.settings.revision })
+    expect(saved.protection).toBe('library')
+    expect(await readSignature(saved, 'abc123')).toEqual(png)
+  })
+
+  it('rolls back every migrated entry, settings and remembered keys when the transaction aborts', async () => {
+    const first = await saveSignature({ name: '甲', image, pin: 'first1' })
+    const second = await saveSignature({ name: '乙', image })
+    await rememberSignatureKey(first, 'first1')
+    const settings = await readLibrarySettings()
+    const clear = IDBObjectStore.prototype.clear
+    vi.spyOn(IDBObjectStore.prototype, 'clear').mockImplementation(function (this: IDBObjectStore) {
+      const request = clear.call(this)
+      if (this.name === 'remembered-keys')
+        this.transaction.abort()
+      return request
+    })
+
+    expect(await errorCode(changeLibraryPin(settings, [first, second], new Map([[first.id, png], [second.id, png]]), 'unified3'))).toBe('failed')
+    expect(await rawRecords()).toEqual(expect.arrayContaining([first, second]))
+    expect(await rawRecords()).toHaveLength(2)
+    expect(await readLibrarySettings()).toEqual(settings)
+    expect(await readRememberedSignature(first)).toEqual(png)
+  })
+
+  it('leaves no partial migration when queuing the settings write throws', async () => {
+    const first = await saveSignature({ name: '甲', image })
+    const second = await saveSignature({ name: '乙', image })
+    const settings = await readLibrarySettings()
+    const put = IDBObjectStore.prototype.put
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+      if (this.name === 'settings')
+        throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      return put.call(this, value, key)
+    })
+
+    expect(await errorCode(changeLibraryPin(settings, [first, second], new Map([[first.id, png], [second.id, png]]), 'abc123'))).toBe('quota')
+    expect.soft(await rawRecords()).toEqual(expect.arrayContaining([first, second]))
+    expect.soft(await readLibrarySettings()).toEqual(settings)
   })
 
   it('lists signatures oldest first and skips unreadable records', async () => {

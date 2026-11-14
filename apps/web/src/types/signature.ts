@@ -36,7 +36,7 @@ export interface SignatureSource {
 
 /**
  * A signature the user saved to this device (PRD FR-08, §6), kept in IndexedDB. Plain entries hold
- * `pngBytes`; PIN-protected ones hold `cipher`, `iv`, `salt` and `kdfIterations` instead.
+ * `pngBytes`; protected ones hold `cipher` and `iv`. Legacy entries also hold their PIN salt and KDF.
  */
 export interface StoredSignature {
   id: string
@@ -48,6 +48,7 @@ export interface StoredSignature {
   naturalHeight: number
   pngBytes?: Uint8Array
   encrypted: boolean
+  protection?: 'library'
   /** AES-GCM ciphertext and tag */
   cipher?: ArrayBuffer
   /** 12 bytes */

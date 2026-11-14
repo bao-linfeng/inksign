@@ -4,7 +4,6 @@ import type { SignatureSource } from '@/types/signature'
 import { CircleAlert, Download } from '@lucide/vue'
 import { Alert, AlertDescription } from '@repo/ui/components/alert'
 import { Button } from '@repo/ui/components/button'
-import { Checkbox } from '@repo/ui/components/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -20,9 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/ta
 import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import LibraryList from '@/components/library/LibraryList.vue'
-import PinHint from '@/components/library/PinHint.vue'
+import PinDialog from '@/components/library/PinDialog.vue'
 import { downloadBytes, signaturePngName } from '@/services/download'
-import { isValidPin } from '@/services/signature-crypto'
 import { SIGNATURE_NAME_MAX_LENGTH, vaultErrorMessage } from '@/services/signature-vault'
 import { useLibraryStore } from '@/stores/library'
 
@@ -35,32 +33,29 @@ const open = defineModel<boolean>('open', { required: true })
 const library = useLibraryStore()
 const tab = ref<'library' | 'draw' | 'image'>('draw')
 const drawEmpty = ref(true)
+const expanded = ref(false)
 const uploaded = ref<SignatureImage | null>(null)
 const busy = ref(false)
 const drawPad = useTemplateRef('drawPad')
-const save = ref(false)
+const save = computed(() => props.saveOnly || library.settings.autoSave)
 const name = ref('全名')
-const protect = ref(false)
-const pin = ref('')
-const repeatPin = ref('')
 const error = ref<string | null>(null)
 const consentOpen = ref(false)
 const consentGiven = ref(false)
 const draftRevision = ref(0)
+const unlockOpen = ref(false)
 
 const hasImage = computed(() => tab.value === 'draw' ? !drawEmpty.value : tab.value === 'image' && uploaded.value !== null)
-const ready = computed(() => hasImage.value && (!props.saveOnly || save.value) && (!save.value || (library.available && !library.full && name.value.trim() && (!protect.value || (isValidPin(pin.value) && pin.value === repeatPin.value)))))
+const ready = computed(() => hasImage.value && (!save.value || (library.available && !library.full && name.value.trim())))
 
 // Every opening starts from a blank pad
 watch(open, async (value) => {
-  pin.value = ''
-  repeatPin.value = ''
+  expanded.value = false
+  unlockOpen.value = false
   uploaded.value = null
   if (value) {
     drawEmpty.value = true
-    save.value = false
     name.value = '全名'
-    protect.value = false
     error.value = null
     consentOpen.value = false
     tab.value = props.saveOnly || library.entries.length ? 'library' : 'draw'
@@ -82,6 +77,10 @@ function selectSaved(id: string) {
 async function confirm(backup = false) {
   if (busy.value || !hasImage.value || (!backup && !ready.value))
     return
+  if (!backup && save.value && library.locked) {
+    unlockOpen.value = true
+    return
+  }
   if (!backup && save.value && !consentGiven.value && library.entries.length === 0) {
     consentOpen.value = true
     return
@@ -96,16 +95,12 @@ async function confirm(backup = false) {
       downloadBytes(image.pngBytes, signaturePngName(name.value), 'image/png')
       return
     }
-    const entry = save.value ? await library.save(name.value, image, protect.value ? pin.value : null) : null
+    const entry = save.value ? await library.save(name.value, image) : null
     if (props.saveOnly) {
       draftRevision.value++
       uploaded.value = null
       drawEmpty.value = true
       tab.value = 'library'
-      save.value = false
-      protect.value = false
-      pin.value = ''
-      repeatPin.value = ''
       return
     }
     emit('create', tab.value === 'draw' ? 'draw' : 'image', image, entry?.id)
@@ -124,18 +119,30 @@ function acceptAndSave() {
   consentOpen.value = false
   void confirm()
 }
+
+function handleEscape(event: KeyboardEvent) {
+  if (expanded.value) {
+    event.preventDefault()
+    expanded.value = false
+  }
+}
 </script>
 
 <template>
   <Dialog :open="open" @update:open="!busy && (open = $event)">
-    <DialogContent class="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-xl" :show-close-button="!busy">
-      <DialogHeader>
+    <DialogContent
+      class="signature-dialog max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-xl"
+      :class="expanded && 'signature-dialog-expanded translate-x-0 translate-y-0'"
+      :show-close-button="!busy && !expanded"
+      @escape-key-down="handleEscape"
+    >
+      <DialogHeader :class="expanded && 'sr-only'">
         <DialogTitle>{{ saveOnly ? '我的签名' : '添加签名' }}</DialogTitle>
         <DialogDescription>{{ saveOnly ? '管理本设备签名，或手写、上传一个新签名。' : '选择已有签名，或手写、上传一个新签名，确认后点击页面放置。' }} 签名只在本机浏览器中处理。</DialogDescription>
       </DialogHeader>
 
-      <Tabs v-model="tab" class="gap-3">
-        <TabsList class="grid w-full grid-cols-3">
+      <Tabs v-model="tab" class="gap-3" :class="expanded && 'min-h-0 flex-1'">
+        <TabsList v-show="!expanded" class="grid w-full grid-cols-3">
           <TabsTrigger value="library" :disabled="busy">
             我的签名（{{ library.entries.length }}）
           </TabsTrigger>
@@ -149,57 +156,25 @@ function acceptAndSave() {
         <TabsContent value="library">
           <LibraryList :selectable="!saveOnly" @select="selectSaved" @create="tab = 'draw'" />
         </TabsContent>
-        <TabsContent value="draw" force-mount class="data-[state=inactive]:hidden">
-          <SignatureDrawPad :key="draftRevision" ref="drawPad" @change="drawEmpty = $event" />
+        <TabsContent value="draw" force-mount class="data-[state=inactive]:hidden" :class="expanded && 'flex min-h-0 flex-col'">
+          <SignatureDrawPad :key="draftRevision" ref="drawPad" v-model:expanded="expanded" @change="drawEmpty = $event" />
         </TabsContent>
         <TabsContent value="image" force-mount class="data-[state=inactive]:hidden">
           <SignatureUpload :key="draftRevision" @change="uploaded = $event" />
         </TabsContent>
       </Tabs>
 
-      <fieldset v-if="tab !== 'library'" class="flex flex-col gap-3 rounded-lg border p-3" :disabled="busy">
-        <label class="flex items-center gap-2 text-sm font-medium">
-          <Checkbox v-model="save" :disabled="!library.available || library.full" />
-          保存到本设备
-        </label>
-        <p v-if="!library.available || library.full" class="text-xs text-muted-foreground">
+      <div v-if="tab !== 'library' && save" v-show="!expanded" class="flex flex-col gap-2">
+        <Label for="signature-name">签名名称</Label>
+        <Input id="signature-name" v-model="name" :disabled="busy" :maxlength="SIGNATURE_NAME_MAX_LENGTH" placeholder="例如：全名、简签" />
+        <p v-if="!library.available || library.full" class="text-xs text-destructive">
           {{ library.full ? '最多保存 20 个签名，请先删除不用的签名。' : '当前浏览器无法保存签名，可下载 PNG 备份。' }}
         </p>
-        <p v-else class="text-xs text-muted-foreground">
-          仅主动保存的签名会保留，清理浏览器数据会丢失，请勿在公共电脑上保存。
-        </p>
-        <template v-if="save">
-          <div class="flex flex-col gap-2">
-            <Label for="signature-name">签名名称</Label>
-            <Input id="signature-name" v-model="name" :maxlength="SIGNATURE_NAME_MAX_LENGTH" placeholder="例如：全名、简签" />
-          </div>
-          <label class="flex items-center gap-2 text-sm">
-            <Checkbox v-model="protect" :disabled="!library.canEncrypt" />
-            使用 PIN 保护
-          </label>
-          <p v-if="!library.canEncrypt" class="text-xs text-muted-foreground">
-            当前环境不支持 PIN 加密，请使用 HTTPS 或本机 localhost。
-          </p>
-          <template v-if="protect">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="flex flex-col gap-2">
-                <Label for="save-pin">PIN（6–32 位数字或字母）</Label><Input id="save-pin" v-model="pin" type="password" autocomplete="off" :aria-invalid="pin !== '' && !isValidPin(pin)" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <Label for="save-pin-repeat">再次输入 PIN</Label><Input id="save-pin-repeat" v-model="repeatPin" type="password" autocomplete="off" :aria-invalid="repeatPin !== '' && repeatPin !== pin" />
-              </div>
-            </div>
-            <p v-if="repeatPin && repeatPin !== pin" class="text-xs text-destructive">
-              两次输入的 PIN 不一致。
-            </p>
-            <PinHint />
-          </template>
-        </template>
-      </fieldset>
+      </div>
       <Alert v-if="error" variant="destructive">
         <CircleAlert aria-hidden="true" /><AlertDescription>{{ error }}</AlertDescription>
       </Alert>
-      <DialogFooter class="max-sm:flex-col-reverse max-sm:gap-2">
+      <DialogFooter v-show="!expanded" class="max-sm:flex-col-reverse max-sm:gap-2">
         <Button class="max-sm:w-full" variant="outline" :disabled="busy" @click="open = false">
           取消
         </Button>
@@ -211,6 +186,8 @@ function acceptAndSave() {
           {{ saveOnly ? '保存签名' : save ? '保存并使用' : '使用此签名' }}
         </Button>
       </DialogFooter>
+
+      <PinDialog v-model:open="unlockOpen" @done="confirm()" />
 
       <Dialog v-model:open="consentOpen">
         <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-md">
@@ -234,3 +211,44 @@ function acceptAndSave() {
     </DialogContent>
   </Dialog>
 </template>
+
+<style>
+.signature-dialog {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.signature-dialog input,
+.signature-dialog textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+.signature-dialog-expanded {
+  top: 0;
+  left: 0;
+  display: flex;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  animation: none;
+}
+
+@media (max-width: 639px) {
+  .signature-dialog:not(.signature-dialog-expanded) {
+    max-width: calc(100% - 1rem);
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+}
+</style>

@@ -1,7 +1,7 @@
 /**
  * Optional PIN protection of saved signatures (PRD FR-08): PBKDF2-SHA256 derives an AES-GCM-256 key
- * from the PIN and a random salt; every signature gets its own salt and IV. Neither the PIN nor the
- * key is stored. This keeps someone sharing the computer from using a signature casually; it does
+ * from the PIN and a random salt. It wraps the shared library key; legacy signatures use their own
+ * salt. The PIN is never stored. Remembered keys require explicit consent. This protection does
  * not withstand an offline brute force on the stored data, and the UI must not claim otherwise.
  */
 
@@ -51,10 +51,20 @@ export async function deriveDecryptionKey(pin: string, salt: Uint8Array, iterati
   return deriveKey(pin, salt, iterations, 'decrypt')
 }
 
-export function decryptImageWithKey(encrypted: EncryptedImage, key: CryptoKey) {
+export function decryptImageWithKey(encrypted: Pick<EncryptedImage, 'cipher' | 'iv'>, key: CryptoKey) {
   return crypto.subtle.decrypt({ name: 'AES-GCM', iv: encrypted.iv as BufferSource }, key, encrypted.cipher)
     .then(bytes => new Uint8Array(bytes))
     .catch((error) => { throw new WrongPinError({ cause: error }) })
+}
+
+export async function encryptImageWithKey(bytes: Uint8Array, key: CryptoKey) {
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES))
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes as BufferSource)
+  return { cipher, iv }
+}
+
+export function importLibraryKey(bytes: Uint8Array) {
+  return crypto.subtle.importKey('raw', bytes as BufferSource, 'AES-GCM', false, ['encrypt', 'decrypt'])
 }
 
 export async function encryptImage(pngBytes: Uint8Array, pin: string, iterations = KDF_ITERATIONS): Promise<EncryptedImage> {
@@ -74,7 +84,7 @@ export async function decryptImage(encrypted: EncryptedImage, pin: string): Prom
     throw new WrongPinError()
   try {
     const key = await deriveDecryptionKey(pin, salt, kdfIterations)
-    return decryptImageWithKey({ cipher, iv, salt, kdfIterations }, key)
+    return decryptImageWithKey({ cipher, iv }, key)
   }
   catch (error) {
     throw new WrongPinError({ cause: error })

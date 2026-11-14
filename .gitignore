@@ -22,7 +22,7 @@ coverage
 .vercel
 
 # Build Outputs
-build
+build/
 dist
 *.tsbuildinfo
 
