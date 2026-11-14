@@ -128,7 +128,7 @@ function acceptAndSave() {
 
 <template>
   <Dialog :open="open" @update:open="!busy && (open = $event)">
-    <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-xl" :show-close-button="!busy">
+    <DialogContent class="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-xl" :show-close-button="!busy">
       <DialogHeader>
         <DialogTitle>{{ saveOnly ? '我的签名' : '添加签名' }}</DialogTitle>
         <DialogDescription>{{ saveOnly ? '管理本设备签名，或手写、上传一个新签名。' : '选择已有签名，或手写、上传一个新签名，确认后点击页面放置。' }} 签名只在本机浏览器中处理。</DialogDescription>
@@ -199,14 +199,14 @@ function acceptAndSave() {
       <Alert v-if="error" variant="destructive">
         <CircleAlert aria-hidden="true" /><AlertDescription>{{ error }}</AlertDescription>
       </Alert>
-      <DialogFooter>
-        <Button variant="outline" :disabled="busy" @click="open = false">
+      <DialogFooter class="max-sm:flex-col-reverse max-sm:gap-2">
+        <Button class="max-sm:w-full" variant="outline" :disabled="busy" @click="open = false">
           取消
         </Button>
-        <Button v-if="tab !== 'library'" variant="outline" :disabled="!hasImage || busy" @click="confirm(true)">
+        <Button v-if="tab !== 'library'" class="max-sm:w-full" variant="outline" :disabled="!hasImage || busy" @click="confirm(true)">
           <Download aria-hidden="true" /> 下载 PNG
         </Button>
-        <Button v-if="tab !== 'library'" :disabled="!ready || busy" @click="confirm()">
+        <Button v-if="tab !== 'library'" class="max-sm:w-full" :disabled="!ready || busy" @click="confirm()">
           <Spinner v-if="busy" aria-label="正在处理" />
           {{ saveOnly ? '保存签名' : save ? '保存并使用' : '使用此签名' }}
         </Button>

@@ -10,11 +10,14 @@ import {
   clearSignatures,
   closeVault,
   deleteSignature,
+  forgetRememberedSignature,
   isPersisted,
   isVaultAvailable,
   listSignatures,
   normalizeName,
+  readRememberedSignature,
   readSignature,
+  rememberSignatureKey,
   renameSignature,
   requestPersistence,
   saveSignature,
@@ -90,6 +93,20 @@ describe('signature vault', () => {
     await expect(readSignature(saved, 'abc124')).rejects.toBeInstanceOf(WrongPinError)
     await expect(readSignature(saved)).rejects.toBeInstanceOf(WrongPinError)
     expect(await readSignature(saved, 'abc123')).toEqual(png)
+  })
+
+  it('remembers only a browser-local key and restores the signature without the PIN', async () => {
+    const saved = await saveSignature({ name: '全名', image, pin: 'abc123' })
+
+    await rememberSignatureKey(saved, 'abc123')
+    closeVault()
+
+    const [reloaded] = await listSignatures()
+    expect(await readRememberedSignature(reloaded!)).toEqual(png)
+    expect(JSON.stringify(await rawRecords())).not.toContain('abc123')
+
+    await forgetRememberedSignature(saved.id)
+    expect(await readRememberedSignature(reloaded!)).toBeNull()
   })
 
   it('lists signatures oldest first and skips unreadable records', async () => {

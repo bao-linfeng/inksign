@@ -40,6 +40,30 @@
 }
 
 @layer base {
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+  @media (max-width: 767px) {
+    body {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    input,
+    button,
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
+
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;

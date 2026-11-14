@@ -3,7 +3,7 @@ import type { SignatureImage } from './signature-image'
 import type { StoredSignature } from '@/types/signature'
 import { openDB } from 'idb'
 
-import { decryptImage, encryptImage, WrongPinError } from './signature-crypto'
+import { decryptImage, decryptImageWithKey, deriveDecryptionKey, encryptImage, WrongPinError } from './signature-crypto'
 
 /**
  * The signature library (PRD FR-08): signatures the user chose to save on this device, in
@@ -16,11 +16,13 @@ export const VAULT_MAX_PNG_BYTES = 2 * 1024 * 1024
 export const SIGNATURE_NAME_MAX_LENGTH = 20
 
 const DB_NAME = 'inksign'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'signatures'
+const KEY_STORE = 'remembered-keys'
 
 interface VaultSchema extends DBSchema {
   [STORE]: { key: string, value: StoredSignature }
+  [KEY_STORE]: { key: string, value: CryptoKey }
 }
 
 export type VaultErrorCode = 'unavailable' | 'full' | 'too-large' | 'quota' | 'missing' | 'failed'
@@ -59,7 +61,10 @@ function database() {
       throw new VaultError('unavailable')
     return openDB<VaultSchema>(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        db.createObjectStore(STORE, { keyPath: 'id' })
+        if (!db.objectStoreNames.contains(STORE))
+          db.createObjectStore(STORE, { keyPath: 'id' })
+        if (!db.objectStoreNames.contains(KEY_STORE))
+          db.createObjectStore(KEY_STORE)
       },
       // Another tab opens a newer version: step aside and reconnect on the next call
       blocking() {
@@ -214,6 +219,38 @@ export async function readSignature(entry: StoredSignature, pin?: string): Promi
   if (!entry.encrypted)
     return entry.pngBytes!
   return decryptImage({ cipher: entry.cipher!, iv: entry.iv!, salt: entry.salt!, kdfIterations: entry.kdfIterations! }, pin ?? '')
+}
+
+/** Stores only a non-extractable key, never the PIN or its derived bytes. */
+export async function rememberSignatureKey(entry: StoredSignature, pin: string) {
+  if (!entry.encrypted)
+    return
+  const key = await deriveDecryptionKey(pin, entry.salt!, entry.kdfIterations!)
+  await run(db => db.put(KEY_STORE, key, entry.id))
+}
+
+/** Tries the browser-local remembered key; invalid or stale keys are discarded. */
+export async function readRememberedSignature(entry: StoredSignature): Promise<Uint8Array | null> {
+  if (!entry.encrypted)
+    return null
+  const key = await run(db => db.get(KEY_STORE, entry.id))
+  if (!key)
+    return null
+  try {
+    return await decryptImageWithKey({ cipher: entry.cipher!, iv: entry.iv!, salt: entry.salt!, kdfIterations: entry.kdfIterations! }, key)
+  }
+  catch {
+    await forgetRememberedSignature(entry.id)
+    return null
+  }
+}
+
+export async function forgetRememberedSignature(id: string) {
+  await run(db => db.delete(KEY_STORE, id))
+}
+
+export async function clearRememberedSignatures() {
+  await run(db => db.clear(KEY_STORE))
 }
 
 /**

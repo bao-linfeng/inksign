@@ -5,11 +5,15 @@ import { computed, ref, shallowRef } from 'vue'
 
 import {
   changeSignaturePin,
+  clearRememberedSignatures,
   clearSignatures,
   deleteSignature,
+  forgetRememberedSignature,
   isPersisted,
   listSignatures,
+  readRememberedSignature,
   readSignature,
+  rememberSignatureKey,
   renameSignature,
   requestPersistence,
   saveSignature,
@@ -50,6 +54,11 @@ export const useLibraryStore = defineStore('library', () => {
       try {
         entries.value = await listSignatures()
         status.value = 'ready'
+        for (const entry of entries.value) {
+          const bytes = await readRememberedSignature(entry)
+          if (bytes)
+            remember(entry.id, bytes)
+        }
         refreshPreviews()
         persisted.value = await isPersisted()
       }
@@ -118,13 +127,15 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   /** Unlocks a protected entry for this session; throws `WrongPinError` for a wrong PIN. */
-  async function unlock(id: string, pin: string): Promise<Uint8Array> {
+  async function unlock(id: string, pin: string, rememberOnDevice = false): Promise<Uint8Array> {
     const entry = entries.value.find(e => e.id === id)
     if (!entry)
       throw new VaultError('missing')
     const bytes = await readSignature(entry, pin)
     if (entry.encrypted) {
       remember(id, bytes)
+      if (rememberOnDevice)
+        await rememberSignatureKey(entry, pin)
       refreshPreviews()
     }
     return bytes
@@ -132,7 +143,9 @@ export const useLibraryStore = defineStore('library', () => {
 
   /** Forgets every unlocked signature: they need their PIN again (PRD FR-08). */
   function lock() {
-    forgetSessionSignatures(entries.value.filter(entry => entry.encrypted).map(entry => entry.id))
+    const ids = entries.value.filter(entry => entry.encrypted).map(entry => entry.id)
+    forgetSessionSignatures(ids)
+    void Promise.all(ids.map(id => forgetRememberedSignature(id)))
     unlocked.value = new Map()
     refreshPreviews()
   }
@@ -151,21 +164,26 @@ export const useLibraryStore = defineStore('library', () => {
   /** Sets, changes or (`newPin: null`) removes a PIN; a protected entry needs its current PIN. */
   async function changePin(id: string, currentPin: string | undefined, newPin: string | null) {
     const { entry, pngBytes } = await changeSignaturePin(id, currentPin, newPin)
+    await forgetRememberedSignature(id).catch(() => {})
     if (entry.encrypted)
       remember(id, pngBytes)
     else
       unlocked.value = new Map([...unlocked.value].filter(([key]) => key !== id))
     replaceEntry(entry)
+    if (!entry.encrypted)
+      void forgetRememberedSignature(id)
   }
 
   async function remove(id: string) {
     await deleteSignature(id)
+    await forgetRememberedSignature(id).catch(() => {})
     forgetSessionSignatures([id])
     setEntries(entries.value.filter(e => e.id !== id))
   }
 
   async function clear() {
     await clearSignatures()
+    await clearRememberedSignatures().catch(() => {})
     forgetSessionSignatures(entries.value.map(entry => entry.id))
     setEntries([])
   }

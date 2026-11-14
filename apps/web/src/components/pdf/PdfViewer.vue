@@ -94,8 +94,9 @@ function selectThumbnail(index: number) {
 function onPageInput(event: Event) {
   const input = event.target as HTMLInputElement
   const page = Number.parseInt(input.value, 10)
-  if (page >= 1 && page <= props.pages.length)
+  if (page >= 1 && page <= props.pages.length) {
     goToPage(page - 1)
+  }
   else {
     pageInput.value = String(currentPage.value + 1)
     input.value = pageInput.value

@@ -27,7 +27,7 @@ const open = defineModel<boolean>('open', { required: true })
 
 <template>
   <Dialog :open="open" @update:open="!busy && (open = $event)">
-    <DialogContent class="sm:max-w-md" :show-close-button="!busy">
+    <DialogContent class="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md" :show-close-button="!busy">
       <DialogHeader>
         <DialogTitle>导出签名后的 PDF</DialogTitle>
         <DialogDescription>
@@ -49,11 +49,11 @@ const open = defineModel<boolean>('open', { required: true })
         <AlertDescription>{{ error }}</AlertDescription>
       </Alert>
 
-      <DialogFooter>
-        <Button variant="outline" :disabled="busy" @click="open = false">
+      <DialogFooter class="max-sm:flex-col-reverse max-sm:gap-2">
+        <Button class="max-sm:w-full" variant="outline" :disabled="busy" @click="open = false">
           取消
         </Button>
-        <Button :disabled="busy" @click="$emit('confirm')">
+        <Button class="max-sm:w-full" :disabled="busy" @click="$emit('confirm')">
           <Spinner v-if="busy" aria-label="正在导出" />
           <Download v-else aria-hidden="true" />
           {{ busy ? '正在导出…' : error ? '重试' : '导出并下载' }}

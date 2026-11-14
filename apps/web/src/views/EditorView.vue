@@ -117,15 +117,15 @@ async function runExport() {
 </script>
 
 <template>
-  <div class="flex h-svh flex-col">
-    <header class="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-3 sm:px-4">
+  <div class="flex h-svh min-w-0 flex-col overflow-hidden">
+    <header class="flex min-h-14 shrink-0 items-center gap-2 border-b bg-background px-3 sm:gap-3 sm:px-4">
       <AppLogo />
       <span class="h-6 w-px shrink-0 bg-border max-sm:hidden" aria-hidden="true" />
       <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <span class="grid size-8 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground max-sm:hidden">
           <FileText class="size-4" aria-hidden="true" />
         </span>
-        <div class="min-w-0 leading-tight">
+        <div class="min-w-0 flex-1 leading-tight">
           <p class="truncate text-sm font-medium" :title="doc.fileName">
             {{ doc.fileName }}
           </p>
@@ -134,12 +134,12 @@ async function runExport() {
           </p>
         </div>
       </div>
-      <PdfFileButton variant="ghost" size="sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" :disabled="loading" @select="emit('select', $event)">
+      <PdfFileButton variant="ghost" size="sm" class="shrink-0 max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" :disabled="loading" @select="emit('select', $event)">
         <Spinner v-if="loading" aria-label="正在打开" />
         <FolderOpen v-else aria-hidden="true" />
         <span class="max-sm:sr-only">重新打开</span>
       </PdfFileButton>
-      <Button size="sm" class="max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" :disabled="!signing.placements.length" :title="signing.placements.length ? undefined : '请先放置签名'" @click="startExport">
+      <Button size="sm" class="shrink-0 max-md:min-h-11 max-md:min-w-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11" :disabled="!signing.placements.length" :title="signing.placements.length ? undefined : '请先放置签名'" @click="startExport">
         <Download aria-hidden="true" />
         <span class="max-sm:sr-only">导出 PDF</span>
       </Button>
@@ -166,7 +166,7 @@ async function runExport() {
       <AlertDescription>此文件经过认证签名，添加签名后认证将显示为无效。</AlertDescription>
     </Alert>
 
-    <div class="relative flex min-h-0 flex-1 max-md:flex-col">
+    <div class="relative flex min-h-0 flex-1 flex-col max-md:flex-col md:flex-row">
       <PdfViewer :pdf="doc.pdf" :pages="doc.pages" class="min-w-0 flex-1">
         <template #page="{ pageIndex, page }">
           <SignatureLayer :page-index="pageIndex" :page="page" />
@@ -175,7 +175,7 @@ async function runExport() {
       <SignaturePanel
         id="signature-tools"
         :pages="doc.pages"
-        class="shrink-0 border-sidebar-border max-md:max-h-[50svh] max-md:border-t md:w-64 md:border-l"
+        class="shrink-0 border-sidebar-border max-md:max-h-[42svh] max-md:border-t max-md:shadow-[0_-8px_24px_rgb(0_0_0/0.08)] md:w-64 md:border-l"
         :class="!toolsOpen && 'max-md:hidden'"
         @create="createSignature"
       />
@@ -191,7 +191,7 @@ async function runExport() {
       </div>
     </div>
 
-    <nav aria-label="签名操作" class="flex shrink-0 gap-2 border-t bg-background px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden">
+    <nav aria-label="签名操作" class="flex shrink-0 gap-2 border-t bg-background px-3 pt-2 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:hidden">
       <Button class="min-h-11 flex-1" @click="createSignature">
         <Plus aria-hidden="true" />
         添加签名

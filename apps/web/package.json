@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",
+    "@internationalized/date": "^3.12.4",
     "@lucide/vue": "catalog:",
     "@repo/ui": "workspace:*",
     "@repo/utils": "workspace:*",

@@ -35,3 +35,7 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Local docs (keep the product specification tracked)
+/docs/*
+!/docs/InkSign_PRD_v1.3.md

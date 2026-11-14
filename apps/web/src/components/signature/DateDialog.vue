@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import type { CalendarDate, DateValue } from '@internationalized/date'
 import type { DateField, DateFormat } from '@/services/date-renderer'
+import { parseDate } from '@internationalized/date'
+import { CalendarDays } from '@lucide/vue'
 import { Button } from '@repo/ui/components/button'
+import { Calendar } from '@repo/ui/components/calendar'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +15,7 @@ import {
 } from '@repo/ui/components/dialog'
 import { Input } from '@repo/ui/components/input'
 import { Label } from '@repo/ui/components/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@repo/ui/components/popover'
 import { RadioGroup, RadioGroupItem } from '@repo/ui/components/radio-group'
 import { computed, ref, watch } from 'vue'
 
@@ -30,11 +35,14 @@ const open = defineModel<boolean>('open', { required: true })
 const value = ref('')
 const format = ref<DateFormat>('zh')
 const color = ref<string>(INK_COLORS[0].value)
+const calendarOpen = ref(false)
+const calendarDate = ref<CalendarDate>()
 
 watch(open, (opened) => {
   if (!opened)
     return
   value.value = props.initial?.value ?? todayIso()
+  calendarDate.value = parseDate(value.value)
   format.value = props.initial?.format ?? loadDateFormat()
   color.value = props.initial?.color ?? INK_COLORS[0].value
 }, { immediate: true })
@@ -51,6 +59,13 @@ function confirm() {
   emit('confirm', { value: value.value, format: format.value, color: color.value })
   open.value = false
 }
+
+function selectDate(date: DateValue) {
+  const next = parseDate(date.toString())
+  calendarDate.value = next
+  value.value = next.toString()
+  calendarOpen.value = false
+}
 </script>
 
 <template>
@@ -66,7 +81,24 @@ function confirm() {
       <div class="flex flex-col gap-5">
         <div class="flex flex-col gap-2">
           <Label for="date-value">日期</Label>
-          <Input id="date-value" v-model="value" type="date" required :aria-invalid="!valid" />
+          <Popover v-model:open="calendarOpen">
+            <div class="flex items-center gap-2">
+              <Input id="date-value" v-model="value" inputmode="numeric" readonly required :aria-invalid="!valid" class="tabular-nums" />
+              <PopoverTrigger as-child>
+                <Button type="button" variant="outline" size="icon" class="size-10 shrink-0" aria-label="打开日期选择器">
+                  <CalendarDays class="size-4" aria-hidden="true" />
+                </Button>
+              </PopoverTrigger>
+            </div>
+            <PopoverContent align="start" class="w-auto p-0">
+              <Calendar
+                :model-value="calendarDate"
+                locale="zh-CN"
+                layout="month-and-year"
+                @update:model-value="date => date && selectDate(date)"
+              />
+            </PopoverContent>
+          </Popover>
           <p v-if="!valid" class="text-xs text-destructive">
             请选择一个有效日期。
           </p>

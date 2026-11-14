@@ -33,8 +33,8 @@ void library.load()
       </Button>
     </header>
 
-    <main class="flex flex-1 flex-col items-center justify-center px-6 pb-16 text-center">
-      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+    <main class="flex flex-1 flex-col items-center justify-center px-5 py-10 pb-[max(4rem,env(safe-area-inset-bottom))] text-center sm:px-6">
+      <h1 class="max-w-sm text-3xl font-semibold tracking-tight sm:max-w-none sm:text-4xl">
         为 PDF 轻松添加手写签名
       </h1>
       <p class="mt-3 text-muted-foreground">
@@ -42,7 +42,7 @@ void library.load()
       </p>
 
       <div
-        class="mt-8 flex w-full max-w-md flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 transition-colors"
+        class="mt-8 flex min-h-52 w-full max-w-md flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-5 py-8 transition-colors sm:px-6 sm:py-10"
         :class="dragging ? 'border-primary bg-accent' : 'border-border'"
       >
         <PdfFileButton size="lg" :disabled="loading" @select="emit('select', $event)">

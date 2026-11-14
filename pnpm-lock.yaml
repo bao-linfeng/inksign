@@ -89,6 +89,9 @@ importers:
       '@cantoo/pdf-lib':
         specifier: ^2.11.1
         version: 2.11.1(html-entities@2.6.0)
+      '@internationalized/date':
+        specifier: ^3.12.4
+        version: 3.12.4
       '@lucide/vue':
         specifier: 'catalog:'
         version: 1.56.0(vue@3.5.44(typescript@6.0.3))

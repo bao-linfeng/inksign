@@ -38,9 +38,11 @@ const newPin = ref('')
 const repeatPin = ref('')
 const busy = ref(false)
 const error = ref<string | null>(null)
+const rememberOnDevice = ref(true)
 
 watch(open, (opened) => {
   currentPin.value = ''
+  rememberOnDevice.value = true
   newPin.value = ''
   repeatPin.value = ''
   if (opened) {
@@ -72,7 +74,7 @@ async function confirm() {
   error.value = null
   try {
     if (props.action === 'unlock')
-      await library.unlock(entry.id, currentPin.value)
+      await library.unlock(entry.id, currentPin.value, rememberOnDevice.value)
     else
       await library.changePin(entry.id, asksCurrent.value ? currentPin.value : undefined, asksNew.value ? newPin.value : null)
     emit('done', entry.id)
@@ -112,6 +114,10 @@ async function confirm() {
           <Label for="pin-current">{{ action === 'unlock' ? 'PIN' : '当前 PIN' }}</Label>
           <Input id="pin-current" v-model="currentPin" type="password" autocomplete="off" :disabled="busy" autofocus />
         </div>
+        <label v-if="action === 'unlock'" class="flex items-start gap-2 text-sm">
+          <input v-model="rememberOnDevice" type="checkbox" class="mt-0.5 accent-primary">
+          <span>在此浏览器记住解锁状态<small class="mt-0.5 block text-xs text-muted-foreground">不会保存 PIN。点击“锁定”后会清除记忆。</small></span>
+        </label>
         <template v-if="asksNew">
           <div class="flex flex-col gap-2">
             <Label for="pin-new">新 PIN</Label>

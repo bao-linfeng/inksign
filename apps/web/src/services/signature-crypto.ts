@@ -47,6 +47,16 @@ async function deriveKey(pin: string, salt: Uint8Array, iterations: number, usag
   )
 }
 
+export async function deriveDecryptionKey(pin: string, salt: Uint8Array, iterations: number) {
+  return deriveKey(pin, salt, iterations, 'decrypt')
+}
+
+export function decryptImageWithKey(encrypted: EncryptedImage, key: CryptoKey) {
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: encrypted.iv as BufferSource }, key, encrypted.cipher)
+    .then(bytes => new Uint8Array(bytes))
+    .catch((error) => { throw new WrongPinError({ cause: error }) })
+}
+
 export async function encryptImage(pngBytes: Uint8Array, pin: string, iterations = KDF_ITERATIONS): Promise<EncryptedImage> {
   if (!isValidPin(pin))
     throw new RangeError('PIN must be 6–32 digits or letters')
@@ -63,8 +73,8 @@ export async function decryptImage(encrypted: EncryptedImage, pin: string): Prom
   if (!Number.isSafeInteger(kdfIterations) || kdfIterations < 1 || iv.length !== IV_BYTES || salt.length !== SALT_BYTES)
     throw new WrongPinError()
   try {
-    const key = await deriveKey(pin, salt, kdfIterations, 'decrypt')
-    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv as BufferSource }, key, cipher))
+    const key = await deriveDecryptionKey(pin, salt, kdfIterations)
+    return decryptImageWithKey({ cipher, iv, salt, kdfIterations }, key)
   }
   catch (error) {
     throw new WrongPinError({ cause: error })
